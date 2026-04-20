@@ -28,7 +28,7 @@
     background: #000;
     pointer-events: none;
     opacity: 1;
-    transition: opacity 2.2s cubic-bezier(.22,.61,.36,1);
+    transition: opacity 3.8s cubic-bezier(.4,0,.6,1);
     z-index: 20;
   }
   .veil.lifted { opacity: 0; }
@@ -485,10 +485,15 @@
   // Double-rAF ensures the browser has committed the initial opacity:1 state
   // before we add .lifted — without this, the transition silently fires on the
   // same frame as the initial render and the veil appears already transparent.
+  // Delay reveal 1.2 s so the ambient sound establishes before any light appears.
+  // The ease-in-out curve starts imperceptibly slow, so the scene seeps in
+  // rather than jumping in.
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    veilEl.classList.add('lifted');
-    setTimeout(() => captionEl.classList.add('in'), 1600);
-    setTimeout(() => exitEl.classList.add('ready'), 2800);
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 2400);
+      setTimeout(() => exitEl.classList.add('ready'), 3800);
+    }, 1200);
   }));
 
   function returnToField() {
