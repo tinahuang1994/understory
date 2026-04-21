@@ -233,6 +233,44 @@
   }
   .field.has-hover .glow { opacity: 1; }
 
+  /* ---------- Suggest a word (dim, bottom-left) ---------- */
+
+  .suggest {
+    position: fixed;
+    left: 28px;
+    bottom: 24px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 240, 232, 0.28);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 1.6s ease, color 0.6s ease;
+  }
+  .suggest.ready { opacity: 1; }
+  .suggest:hover { color: rgba(245, 240, 232, 0.7); }
+  .suggest .plus {
+    font-size: 14px;
+    letter-spacing: 0;
+    line-height: 1;
+    color: var(--ember);
+    text-shadow: 0 0 10px rgba(233, 184, 119, 0.5);
+    transition: color 0.6s ease, text-shadow 0.6s ease;
+  }
+  .suggest:hover .plus {
+    color: var(--ember-soft);
+    text-shadow: 0 0 16px rgba(233, 184, 119, 0.8);
+  }
+
   /* ---------- Sound toggle (dim, bottom-right) ---------- */
 
   .sound {
@@ -288,6 +326,15 @@
     </div>
     <!-- words injected by JS -->
   </div>
+
+  <a class="suggest" id="suggestBtn"
+     href="https://docs.google.com/forms/d/e/1FAIpQLSe_o7mOJTLbyXQtgMhNmvdq2cD2k6WJQgpRDqV9hOlOAccJCw/viewform"
+     target="_blank"
+     rel="noopener noreferrer"
+     aria-label="Suggest a word">
+    <span class="plus">+</span>
+    <span>suggest a word</span>
+  </a>
 
   <button class="sound" id="soundBtn" aria-label="Toggle ambient sound">
     <span class="dot"></span>
@@ -509,7 +556,8 @@
     setTimeout(() => { intro.style.display = 'none'; }, 2400);
     setTimeout(() => revealField({ stagger: 220, firstDelay: 0 }), 700);
     armSoundOnce();
-    setTimeout(() => soundBtn.classList.add('ready'), 3200);
+    setTimeout(() => soundBtn.classList.add('ready'),   3200);
+    setTimeout(() => suggestBtn.classList.add('ready'), 3200);
   });
 
   // ----------------------------------------------------------------
@@ -517,10 +565,14 @@
   // Implemented with Web Audio (no external file) so it loads instantly
   // and is guaranteed quiet and loopless. Default OFF.
   // ----------------------------------------------------------------
-  const soundBtn = document.getElementById('soundBtn');
+  const soundBtn   = document.getElementById('soundBtn');
+  const suggestBtn = document.getElementById('suggestBtn');
 
-  // Shown immediately on re-entry, otherwise shown after CTA click
-  if (seen) setTimeout(() => soundBtn.classList.add('ready'), 400);
+  // Both shown immediately on re-entry, otherwise shown after CTA click
+  if (seen) {
+    setTimeout(() => soundBtn.classList.add('ready'),   400);
+    setTimeout(() => suggestBtn.classList.add('ready'), 400);
+  }
 
   let audioCtx = null;
   let masterGain = null;
