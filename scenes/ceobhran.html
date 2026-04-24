@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ceobhrán · Irish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #1a1c1e;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .veil {
+    position: fixed; inset: 0;
+    background: #1a1c1e;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 4.5s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3.5s ease;
+  }
+  .caption.in { opacity: 1; }
+
+  /* Ceobhrán — Latin script, Cormorant Garamond handles the fada (á) natively */
+  .caption .word {
+    display: block;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    letter-spacing: 0.08em;
+    color: #e8c97a;
+    text-shadow:
+      0 2px 16px rgba(0,0,0,0.98),
+      0 0 80px rgba(0,0,0,0.80),
+      0 4px 6px rgba(0,0,0,1);
+  }
+
+  .caption .lang {
+    display: block;
+    margin-top: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(245, 236, 210, 0.65);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 740px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.75;
+    letter-spacing: 0.02em;
+    color: rgba(245, 238, 220, 0.90);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 236, 210, 0.40);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(245, 236, 210, 0.85); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="caption" id="caption">
+    <span class="word">Ceobhrán</span>
+    <span class="lang">Irish</span>
+    <span class="felt">Not rain, not fog. The air between them —<br>when the world turns silver and you stop minding getting wet.</span>
+  </div>
+
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  CEOBHRÁN — Irish threshold between drizzle and mist
+  //
+  //  Visual composition:
+  //    • Irish Atlantic coastal cliffs. Green moss over dark rock,
+  //      descending to a silver-grey ocean. The far distance is dissolved
+  //      in mist — not hidden, just... elsewhere. The sky is the same
+  //      grey as the water. You can't find the horizon.
+  //    • The scene is neither-nor. Not dramatic weather, not clear sky.
+  //      The specific quality of being on the threshold. The world turns
+  //      silver and stops announcing itself.
+  //    • Layer 1: Mist drift — a barely-visible layer of lighter grey
+  //      moving very slowly leftward across the frame. Not thick. Just
+  //      the air being slightly more than air.
+  //    • Layer 2: Fine moisture — tiny silver-white points that drift
+  //      downward almost imperceptibly. Not rain drops. Not fog wisps.
+  //      The thing between them.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#050708');
+
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  // Portrait image (~0.75 AR).
+  // CENTER_Y = 0.46 — frames the cliff edge, the misty ocean drop below,
+  // and the grey-white dissolving sky above. The threshold is everywhere.
+  const bgLoader = new THREE.TextureLoader();
+  const bgTex    = bgLoader.load('../assets/ceobhran.png');
+
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.46;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+
+        // Suppress watermark corner
+        float wmX = smoothstep(0.80, 1.0, vUv.x);
+        float wmY = smoothstep(0.85, 1.0, vUv.y);
+        col *= 1.0 - wmX * wmY * 0.90;
+
+        // Desaturate toward silver-grey — ceobhrán drains color from the world.
+        // The moss stays faintly green but everything else turns silver.
+        // Partial desaturation preserves the Irish green in the darkest tones.
+        float greenBias = col.g - (col.r + col.b) * 0.5;  // how green this pixel is
+        float keepGreen = smoothstep(0.0, 0.08, greenBias) * smoothstep(0.7, 0.4, lum);
+        float desat = mix(0.70, 0.40, keepGreen);  // desaturate most, but spare the green
+        col = mix(col, vec3(lum), desat);
+
+        // Slight blue-silver cast — Atlantic overcast, not warm grey
+        col.b *= 1.06;
+        col.r *= 0.95;
+
+        // Brighten the mist zones (upper half) slightly — the sky and sea
+        // blend into a shared grey-white. The horizon dissolves.
+        float mistZone = smoothstep(0.55, 0.20, vUv.y);
+        col = mix(col, vec3(lum * 1.05 + 0.04), mistZone * 0.25);
+
+        // Film grain — slightly coarser, like an overcast day
+        float grain1 = hash(vUv * 1763.8 + floor(uTime * 12.0) * 0.23);
+        float grain2 = hash(vUv * 3299.5 + floor(uTime * 12.0) * 0.41 + 0.5);
+        float grain  = (grain1 * 0.65 + grain2 * 0.35 - 0.5) * 0.033;
+        float midMask = 1.0 - abs(lum - 0.55) * 1.4;  // centered higher — overcast is brighter
+        col += grain * clamp(midMask, 0.30, 1.0);
+
+        // Vignette — soft, fades to dark grey not black. The edges dissolve.
+        float vign = distance(vUv, vec2(0.5, 0.48));
+        float vignAmt = smoothstep(0.20, 0.92, vign) * 0.55;
+        col *= 1.0 - vignAmt;
+        // Lift the darks at the edge slightly toward grey, not black
+        col = max(col, vec3(vignAmt * 0.06));
+
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(skyGeo, bgMat);
+  scene.add(bgMesh);
+
+  // -------- Layer 1: Mist drift --------
+  // A barely-visible layer of lighter silver-grey moving slowly leftward.
+  // Atlantic coastal mist blows in off the water. Very slow. Almost still.
+  // You register it more in peripheral vision than direct focus.
+  const mistMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v=0.0,a=0.5; for(int i=0;i<3;i++){v+=a*noise(p);p*=2.0;a*=0.5;} return v;
+      }
+
+      void main() {
+        // Atlantic mist drifts from the right (off the sea) very slowly
+        vec2 p = vec2(vUv.x * 2.5 - uTime * 0.006, vUv.y * 1.8 + 0.3);
+        float mist = fbm(p);
+        mist = smoothstep(0.46, 0.62, mist);
+
+        // Concentrated in the upper two-thirds — mist comes from above the sea
+        float zone = smoothstep(0.78, 0.30, vUv.y);
+
+        float amt = mist * zone * 0.08;
+        // Silver-white — the color of Atlantic coastal mist
+        vec3 col = vec3(0.88, 0.90, 0.92) * amt;
+        gl_FragColor = vec4(col, amt * 0.65);
+      }
+    `,
+  });
+  const mistMesh = new THREE.Mesh(skyGeo, mistMat);
+  mistMesh.renderOrder = 1;
+  scene.add(mistMesh);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value = w / h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value  = t;
+    mistMat.uniforms.uTime.value = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  // Slowest veil of all scenes — the mist doesn't lift, it reveals gradually.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 3200);
+      setTimeout(() => exitEl.classList.add('ready'), 5000);
+    }, 1600);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__ceobhranAudio) window.__ceobhranAudio.fadeOut(1.8);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') returnToField(); });
+
+  // ---------- Sound: Ceobhrán ----------
+  // Unique fingerprint: ATLANTIC WAVE SURGE + RAIN DROPS ON STONE.
+  // The word field uses 420 Hz LP noise. Ceobhrán uses 220 Hz — muffled,
+  // damp, around-stone rather than open-air. Unmistakably different register.
+  //
+  // (1) Sub-bass 65 Hz — coastal stone resonance.
+  // (2) Cliff wind — 220 Hz LP. Much lower than word field (420 Hz). Wind
+  //     filtered through and around stone: damp, enclosed, directional.
+  // (3) Mist whisper — 2800 Hz BP. The specific texture of air almost-water.
+  // (4) Rain drops on stone — sparse, countable. Every 8–20 seconds.
+  //     Individual drops landing on rock. The almost-rain that IS ceobhrán.
+  //     Nothing like this in any other scene.
+  // (5) Wave surge — the cliff below. Occasional low boom + wash.
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(seconds, gainMul = 1) {
+    const len = seconds * audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<len;i++) {
+      const w = Math.random()*2-1;
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2 + w*0.1848) * 0.08 * gainMul;
+    }
+    return buf;
+  }
+
+  // (1) Cliff resonance — 65 Hz.
+  const resOsc = audioCtx.createOscillator();
+  resOsc.type = 'sine';
+  resOsc.frequency.value = 65;
+  const resGain = audioCtx.createGain();
+  resGain.gain.value = 0.14;
+  resOsc.connect(resGain).connect(master);
+  resOsc.start();
+
+  // (2) Cliff wind — 220 Hz LP. Completely different from word field (420 Hz LP).
+  // Wind arriving through stone — damp, muffled, directional. Not open air.
+  const windSrc = audioCtx.createBufferSource();
+  windSrc.buffer = makeNoise(5, 1.3);
+  windSrc.loop = true;
+  const windLP = audioCtx.createBiquadFilter();
+  windLP.type = 'lowpass';
+  windLP.frequency.value = 220;
+  const windGain = audioCtx.createGain();
+  windGain.gain.value = 0.20;
+  const windLFO = audioCtx.createOscillator();
+  windLFO.frequency.value = 0.028;
+  const windLFOAmt = audioCtx.createGain();
+  windLFOAmt.gain.value = 0.07;
+  windLFO.connect(windLFOAmt).connect(windGain.gain);
+  windLFO.start();
+  // Narrow sweep — stays well below the word field range (280–560 Hz)
+  const windSweep = audioCtx.createOscillator();
+  windSweep.frequency.value = 0.018;
+  const windSweepAmt = audioCtx.createGain();
+  windSweepAmt.gain.value = 55;  // sweeps 165–275 Hz only
+  windSweep.connect(windSweepAmt).connect(windLP.frequency);
+  windSweep.start();
+  windSrc.connect(windLP).connect(windGain).connect(master);
+  windSrc.start();
+
+  // (3) Mist whisper — 2800 Hz BP. Raised to be audible as a distinct texture.
+  const mistSrc = audioCtx.createBufferSource();
+  mistSrc.buffer = makeNoise(4, 0.5);
+  mistSrc.loop = true;
+  const mistBP = audioCtx.createBiquadFilter();
+  mistBP.type = 'bandpass';
+  mistBP.frequency.value = 2800;
+  mistBP.Q.value = 1.0;
+  const mistGain = audioCtx.createGain();
+  mistGain.gain.value = 0.14;
+  mistSrc.connect(mistBP).connect(mistGain).connect(master);
+  mistSrc.start();
+
+  // (4) Rain drops on stone — the ceobhrán fingerprint.
+  // Sparse, countable drops on rock. Every 8–20 seconds. Not a shower —
+  // individual drops you can hear one by one. The almost-rain.
+  function raindrop() {
+    const now = audioCtx.currentTime;
+    const t = now + 0.02;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = makeNoise(0.25, 1.8);
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1800 + Math.random() * 700;  // stone-tap character
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 5000;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.11 + Math.random() * 0.06, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    noise.connect(hp).connect(lp).connect(g).connect(master);
+    noise.start(t);
+    noise.stop(t + 0.3);
+    setTimeout(raindrop, 8000 + Math.random() * 12000);
+  }
+  setTimeout(raindrop, 5000 + Math.random() * 7000);
+
+  // (4) Wave surge — the unique fingerprint.
+  // Two parts:
+  //   (a) Impact — a short low-frequency boom: noise LP at 100–140 Hz,
+  //       fast attack, quick decay. The wave hitting rock.
+  //   (b) Wash — longer noise burst LP at 800 Hz, slower decay.
+  //       The water pulling back over stone.
+  function wave() {
+    const now = audioCtx.currentTime;
+    const delay = 0.05 + Math.random() * 0.2;
+    const t = now + delay;
+
+    // (a) Impact
+    const impactNoise = audioCtx.createBufferSource();
+    impactNoise.buffer = makeNoise(1.0, 2.0);
+    const impactLP = audioCtx.createBiquadFilter();
+    impactLP.type = 'lowpass';
+    impactLP.frequency.value = 110 + Math.random() * 40;
+    const impactG = audioCtx.createGain();
+    impactG.gain.setValueAtTime(0, t);
+    impactG.gain.linearRampToValueAtTime(0.28, t + 0.06);
+    impactG.gain.exponentialRampToValueAtTime(0.0001, t + 0.80);
+    impactNoise.connect(impactLP).connect(impactG).connect(master);
+    impactNoise.start(t);
+    impactNoise.stop(t + 1.0);
+
+    // (b) Wash — starts slightly after impact, longer
+    const washNoise = audioCtx.createBufferSource();
+    washNoise.buffer = makeNoise(3.0, 1.0);
+    const washLP = audioCtx.createBiquadFilter();
+    washLP.type = 'lowpass';
+    washLP.frequency.value = 800;
+    const washHP = audioCtx.createBiquadFilter();
+    washHP.type = 'highpass';
+    washHP.frequency.value = 200;
+    const washG = audioCtx.createGain();
+    const tw = t + 0.12;
+    washG.gain.setValueAtTime(0, tw);
+    washG.gain.linearRampToValueAtTime(0.14, tw + 0.20);
+    washG.gain.exponentialRampToValueAtTime(0.0001, tw + 2.5);
+    washNoise.connect(washLP).connect(washHP).connect(washG).connect(master);
+    washNoise.start(tw);
+    washNoise.stop(tw + 3.0);
+
+    // Atlantic set structure: 30% chance of a follow-up wave in a set (8–15s),
+    // otherwise long silence (45–70s). Mirrors real swell behavior.
+    if (Math.random() < 0.30) {
+      setTimeout(wave, 8000 + Math.random() * 7000);
+    } else {
+      setTimeout(wave, 45000 + Math.random() * 25000);
+    }
+  }
+  // First wave: 12–20 seconds in — let the mist settle first
+  setTimeout(wave, 12000 + Math.random() * 8000);
+
+  // Fade in — slow, like the mist arriving
+  const t0 = audioCtx.currentTime;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(0.60, t0 + 5.0);
+
+  window.__ceobhranAudio = {
+    fadeOut(sec = 1.8) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+
+})();
+</script>
+</body>
+</html>

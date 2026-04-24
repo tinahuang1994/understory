@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>غيث · Ghayth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&family=Amiri:wght@400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #060504;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .veil {
+    position: fixed; inset: 0;
+    background: #000;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 4.0s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3.5s ease;
+  }
+  .caption.in { opacity: 1; }
+
+  /* Arabic — Amiri is a classical Arabic typeface, warm and elegant */
+  .caption .script {
+    display: block;
+    font-family: 'Amiri', serif;
+    font-weight: 400;
+    font-size: 72px;
+    letter-spacing: 0.05em;
+    color: #e8c97a;
+    direction: rtl;
+    text-shadow:
+      0 2px 16px rgba(0,0,0,0.98),
+      0 0 80px rgba(0,0,0,0.80),
+      0 4px 6px rgba(0,0,0,1);
+  }
+
+  .caption .roman {
+    display: block;
+    margin-top: 8px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 20px;
+    letter-spacing: 0.12em;
+    color: rgba(245, 236, 210, 0.85);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .lang {
+    display: block;
+    margin-top: 6px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(245, 236, 210, 0.65);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 700px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.75;
+    letter-spacing: 0.02em;
+    color: rgba(245, 238, 220, 0.92);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 236, 210, 0.45);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(245, 236, 210, 0.90); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="caption" id="caption">
+    <span class="script">غيث</span>
+    <span class="roman">Ghayth</span>
+    <span class="lang">Arabic</span>
+    <span class="felt">In the Arabian desert, rain is not weather. It is rescue.<br>غيث is the word for when it finally comes.</span>
+  </div>
+
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  غيث / GHAYTH — Arabian desert rain as rescue
+  //
+  //  Visual composition:
+  //    • A vast Arabian desert plain. At the horizon, a wall of rain
+  //      approaches — backlit by a ribbon of amber-gold light that spills
+  //      beneath the storm clouds. The sky above is dark and heavy. The
+  //      desert floor glows ochre in the last direct light.
+  //    • The scene is anticipation: the breath before rescue arrives.
+  //      You are watching the rain come. You can see it. You can almost
+  //      feel the temperature drop.
+  //    • Layer 1: Storm glow — amber light pulsing beneath the cloud base.
+  //      Slower than heartbeat. The light that makes rain look golden.
+  //    • Layer 2: Heat shimmer — wavering vertical distortion near the
+  //      desert floor. The last hot air rising before the rain cools it.
+  //    • No casual particles. The air is charged — still before the break.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#060504');
+
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  // Portrait image (~0.75 AR).
+  // CENTER_Y = 0.48 — frames the rain curtain and the golden light ribbon
+  // beneath the storm. The most sacred part of the image.
+  const bgLoader = new THREE.TextureLoader();
+  const bgTex    = bgLoader.load('../assets/ghayth.png');
+
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.48;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        // Suppress any watermark (bottom-right corner)
+        float wmX = smoothstep(0.80, 1.0, vUv.x);
+        float wmY = smoothstep(0.85, 1.0, vUv.y);
+        col *= 1.0 - wmX * wmY * 0.90;
+
+        // Deepen the amber: push red/orange channel slightly in the lower half
+        // This is a desert at golden hour — ochre is the right ground tone
+        float groundMask = smoothstep(0.40, 0.65, vUv.y);
+        col.r += groundMask * 0.025;
+        col.g += groundMask * 0.008;
+
+        // Cool the storm sky — the darkness above should feel heavier
+        float stormMask = smoothstep(0.40, 0.10, vUv.y);
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(col, vec3(lum * 0.92), stormMask * 0.30);
+        col.b += stormMask * 0.02; // slight blue-grey to the storm mass
+
+        // Film grain — breaks the AI smoothness
+        float grain1 = hash(vUv * 1847.3 + floor(uTime * 12.0) * 0.21);
+        float grain2 = hash(vUv * 3512.8 + floor(uTime * 12.0) * 0.37 + 0.5);
+        float grain  = (grain1 * 0.65 + grain2 * 0.35 - 0.5) * 0.028;
+        float midLum = 1.0 - abs(lum - 0.45) * 1.5;
+        col += grain * clamp(midLum, 0.25, 1.0);
+
+        // Vignette — moderate. The horizon must stay open (that's where rescue comes from)
+        float vign = distance(vUv, vec2(0.5, 0.50));
+        col *= 1.0 - smoothstep(0.22, 0.90, vign) * 0.45;
+
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(skyGeo, bgMat);
+  scene.add(bgMesh);
+
+  // -------- Layer 1: Storm glow --------
+  // The amber-gold ribbon of light beneath the storm cloud base.
+  // Slow pulse — the light brightens as the storm edge shifts.
+  // Centered low on the frame where the horizon sits.
+  const stormGlowMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+
+      void main() {
+        float t = uTime;
+        // Cloud-edge modulation — light pulses as the storm moves
+        float edge = noise(vec2(t * 0.018, 0.6)) * 0.5 + 0.5;
+
+        // Horizontal band at the horizon — the light escaping under the clouds
+        // Horizon sits at approximately y=0.52 in screen space
+        float dy = abs(vUv.y - 0.52) * 4.5;
+        float dx = abs(vUv.x - 0.50) * 1.2;
+        float d  = dy * dy + dx * dx * 0.4;
+
+        float amt = smoothstep(0.60, 0.0, d) * (0.28 + 0.18 * edge);
+
+        // Desert amber-gold — the color of light under a desert storm
+        vec3 col = vec3(0.92, 0.60, 0.18) * amt;
+        gl_FragColor = vec4(col, amt * 0.45);
+      }
+    `,
+  });
+  const stormGlowMesh = new THREE.Mesh(skyGeo, stormGlowMat);
+  stormGlowMesh.renderOrder = 1;
+  scene.add(stormGlowMesh);
+
+  // -------- Layer 2: Heat shimmer --------
+  // Vertical wavering distortion near the desert floor.
+  // The last rising heat before the rain arrives and cools the air.
+  // Implemented as a subtle UV distortion overlay — very fine,
+  // barely perceptible ripple in the lower third of the frame.
+  const shimmerMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.48;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+
+      void main() {
+        // Only apply in the lower 40% of the frame (desert floor)
+        float groundZone = smoothstep(0.58, 0.75, vUv.y);
+        if (groundZone < 0.005) { gl_FragColor = vec4(0.0); return; }
+
+        // Very fine vertical shimmer — hot air columns rising
+        float shimX = noise(vec2(vUv.x * 12.0, uTime * 0.22)) * 0.0018 * groundZone;
+        float shimY = noise(vec2(vUv.x * 8.0 + 3.7, uTime * 0.18)) * 0.0010 * groundZone;
+
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x + shimX, (vUv.y + shimY) * visH + yOff);
+        vec3 shimCol = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        // Blend the shimmer back very lightly — just enough to see the air move
+        gl_FragColor = vec4(shimCol, groundZone * 0.45);
+      }
+    `,
+  });
+  const shimmerMesh = new THREE.Mesh(skyGeo, shimmerMat);
+  shimmerMesh.renderOrder = 2;
+  scene.add(shimmerMesh);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value      = w / h;
+    shimmerMat.uniforms.uAspect.value = w / h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value        = t;
+    stormGlowMat.uniforms.uTime.value = t;
+    shimmerMat.uniforms.uTime.value   = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  // Slower than Friluftsliv — the weight of the waiting.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 2800);
+      setTimeout(() => exitEl.classList.add('ready'), 4200);
+    }, 1400);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__gaythAudio) window.__gaythAudio.fadeOut(1.8);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') returnToField(); });
+
+  // ---------- Sound: Ghayth ----------
+  // Unique fingerprint: DISTANT THUNDER — the only scene with thunder.
+  // No other scene approaches this frequency event.
+  //
+  // (1) Sub-bass 58 Hz — the desert earth. All weight, no movement.
+  // (2) Desert wind — 350 Hz LP. Hot, directional. Not the open ridge wind
+  //     (600 Hz) or the deep forest wind (180 Hz). This is the pressing
+  //     heat of air moving before a storm. Very slow LFO.
+  // (3) Far rain curtain hiss — 1200 Hz BP noise, very quiet. The sound
+  //     of rain you can see but not yet feel. Like a held note.
+  // (4) Distant thunder — the rare event. Every 30–60 seconds. Low
+  //     rolling burst at 80–130 Hz. Builds slowly, fades into silence.
+  //     After it fades, the waiting is heavier than before.
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(seconds, gainMul = 1) {
+    const len = seconds * audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<len;i++) {
+      const w = Math.random()*2-1;
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2 + w*0.1848) * 0.08 * gainMul;
+    }
+    return buf;
+  }
+
+  // (1) Sub-bass drone — 58 Hz. Desert earth below everything.
+  const droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sine';
+  droneOsc.frequency.value = 58;
+  const droneGain = audioCtx.createGain();
+  droneGain.gain.value = 0.20;
+  // Barely breathing — a very slow, almost imperceptible swell
+  const droneLFO = audioCtx.createOscillator();
+  droneLFO.frequency.value = 0.014;
+  const droneLFOAmt = audioCtx.createGain();
+  droneLFOAmt.gain.value = 0.04;
+  droneLFO.connect(droneLFOAmt).connect(droneGain.gain);
+  droneLFO.start();
+  droneOsc.connect(droneGain).connect(master);
+  droneOsc.start();
+
+  // (2) Desert wind — 350 Hz LP with slow LFO.
+  // Hot, pressing wind. Not the gentle ridge wind. The wind before a storm.
+  const windSrc = audioCtx.createBufferSource();
+  windSrc.buffer = makeNoise(6, 1.4);
+  windSrc.loop = true;
+  const windLP = audioCtx.createBiquadFilter();
+  windLP.type = 'lowpass';
+  windLP.frequency.value = 350;
+  const windGain = audioCtx.createGain();
+  windGain.gain.value = 0.18;
+  // Slow surges — storm pressure building
+  const windLFO = audioCtx.createOscillator();
+  windLFO.frequency.value = 0.04;
+  const windLFOAmt = audioCtx.createGain();
+  windLFOAmt.gain.value = 0.07;
+  windLFO.connect(windLFOAmt).connect(windGain.gain);
+  windLFO.start();
+  // Filter sweep — the wind finds lower registers as the storm approaches
+  const windSweep = audioCtx.createOscillator();
+  windSweep.frequency.value = 0.016;
+  const windSweepAmt = audioCtx.createGain();
+  windSweepAmt.gain.value = 80;
+  windSweep.connect(windSweepAmt).connect(windLP.frequency);
+  windSweep.start();
+  windSrc.connect(windLP).connect(windGain).connect(master);
+  windSrc.start();
+
+  // (3) Far rain curtain — 1200 Hz BP noise, very quiet.
+  // The sound of the wall of rain at the horizon.
+  // Like a whisper from the distance. You can hear it if you listen.
+  const rainSrc = audioCtx.createBufferSource();
+  rainSrc.buffer = makeNoise(4, 0.6);
+  rainSrc.loop = true;
+  const rainBP = audioCtx.createBiquadFilter();
+  rainBP.type = 'bandpass';
+  rainBP.frequency.value = 1200;
+  rainBP.Q.value = 0.6;
+  const rainGain = audioCtx.createGain();
+  rainGain.gain.value = 0.10;
+  // Slowly swell — rain is approaching
+  const rainLFO = audioCtx.createOscillator();
+  rainLFO.frequency.value = 0.009;
+  const rainLFOAmt = audioCtx.createGain();
+  rainLFOAmt.gain.value = 0.04;
+  rainLFO.connect(rainLFOAmt).connect(rainGain.gain);
+  rainLFO.start();
+  rainSrc.connect(rainBP).connect(rainGain).connect(master);
+  rainSrc.start();
+
+  // (4) Distant thunder — the unique fingerprint of this scene.
+  // A low rolling noise burst at 80–130 Hz. Not a sharp crack — thunder
+  // at distance is a long roll, like the sky turning over slowly.
+  // Happens every 30–60 seconds. The silence after is heavier.
+  function thunder() {
+    const now = audioCtx.currentTime;
+    // Each thunder is slightly different — storm is dynamic
+    const freq = 85 + Math.random() * 45;
+    const duration = 3.5 + Math.random() * 2.5;
+    const delay = 0.1 + Math.random() * 0.4;
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = makeNoise(duration + 1, 2.0);
+
+    const lp1 = audioCtx.createBiquadFilter();
+    lp1.type = 'lowpass';
+    lp1.frequency.value = freq + 40;
+
+    const lp2 = audioCtx.createBiquadFilter();
+    lp2.type = 'lowpass';
+    lp2.frequency.value = freq;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 55;
+
+    const g = audioCtx.createGain();
+    const t = now + delay;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.30, t + 0.35);           // slow build — rolling thunder
+    g.gain.setValueAtTime(0.30, t + duration * 0.35);          // hold at peak briefly
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration); // long fade into silence
+
+    noise.connect(lp1).connect(lp2).connect(hp).connect(g).connect(master);
+    noise.start(t);
+    noise.stop(t + duration + 0.1);
+
+    // Next thunder: 30–60 seconds
+    setTimeout(thunder, 30000 + Math.random() * 30000);
+  }
+  // First thunder: 15–25 seconds in — let the scene breathe first
+  setTimeout(thunder, 15000 + Math.random() * 10000);
+
+  // Fade in — measured, weighted. The scene carries the whole desert's waiting.
+  const t0 = audioCtx.currentTime;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(0.57, t0 + 5.0);
+
+  window.__gaythAudio = {
+    fadeOut(sec = 1.8) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+
+})();
+</script>
+</body>
+</html>

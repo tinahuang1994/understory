@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>숲멍 · Soop-meong</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&family=Noto+Serif+KR:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #050604;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .veil {
+    position: fixed; inset: 0;
+    background: #000;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 4.2s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 4s ease;
+  }
+  .caption.in { opacity: 1; }
+
+  /* Korean — Noto Serif KR for the Hangul script */
+  .caption .script {
+    display: block;
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 300;
+    font-size: 62px;
+    letter-spacing: 0.06em;
+    color: #e8c97a;
+    text-shadow:
+      0 2px 16px rgba(0,0,0,0.98),
+      0 0 80px rgba(0,0,0,0.80),
+      0 4px 6px rgba(0,0,0,1);
+  }
+
+  .caption .roman {
+    display: block;
+    margin-top: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 20px;
+    letter-spacing: 0.12em;
+    color: rgba(245, 236, 210, 0.85);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .lang {
+    display: block;
+    margin-top: 6px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(245, 236, 210, 0.65);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 720px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.75;
+    letter-spacing: 0.02em;
+    color: rgba(245, 238, 220, 0.92);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 236, 210, 0.45);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(245, 236, 210, 0.90); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="caption" id="caption">
+    <span class="script">숲멍</span>
+    <span class="roman">Soop-meong</span>
+    <span class="lang">Korean</span>
+    <span class="felt">Sitting in the forest until your mind goes quiet enough to disappear into it.</span>
+  </div>
+
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  숲멍 / SOOP-MEONG — Korean forest blankness
+  //
+  //  Visual composition:
+  //    • A Korean pine forest. Tall straight trunks rise from a floor of
+  //      rust-brown needles. Late afternoon light enters at a low angle,
+  //      cutting shafts through the haze between the trees. You are
+  //      sitting somewhere in it — still, not walking.
+  //    • The scene is not peaceful. It is blank. The difference matters:
+  //      peace requires an active mind noticing it. Blanks just... is.
+  //      The forest has taken your thoughts. You didn't give them.
+  //    • Layer 1: Light shaft glow — warm amber pooling between the trunks,
+  //      pulsing at a pace much slower than breathing.
+  //    • Layer 2: Forest depth haze — a very subtle warm mist in the far
+  //      distances between trees. The forest keeps going.
+  //    • Layer 3: Dust motes — fine, barely moving, drifting upward very
+  //      slowly in the shafts of light. Almost imperceptible. Like the
+  //      last thoughts leaving.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#050604');
+
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  // Portrait image (~0.75 AR).
+  // CENTER_Y = 0.50 — mid-trunk height, where the light shafts are most
+  // visible and the haze between distant trees creates depth.
+  const bgLoader = new THREE.TextureLoader();
+  const bgTex    = bgLoader.load('../assets/soop-meong.png');
+
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.50;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        // Suppress watermark corner
+        float wmX = smoothstep(0.80, 1.0, vUv.x);
+        float wmY = smoothstep(0.85, 1.0, vUv.y);
+        col *= 1.0 - wmX * wmY * 0.90;
+
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+
+        // Warm the light-shaft zone (upper-middle of frame) — amber afternoon pine light
+        float lightZone = smoothstep(0.60, 0.35, vUv.y) * smoothstep(0.20, 0.45, vUv.y);
+        col.r += lightZone * 0.025;
+        col.g += lightZone * 0.010;
+
+        // Slightly cool and deepen the dark between-trunk corridors
+        float darkZone = smoothstep(0.50, 0.20, lum);
+        col.b += darkZone * 0.015;
+        col = mix(col, vec3(lum * 0.95), darkZone * 0.12);
+
+        // Film grain
+        float grain1 = hash(vUv * 1983.4 + floor(uTime * 12.0) * 0.19);
+        float grain2 = hash(vUv * 3742.1 + floor(uTime * 12.0) * 0.31 + 0.5);
+        float grain  = (grain1 * 0.65 + grain2 * 0.35 - 0.5) * 0.027;
+        float midMask = 1.0 - abs(lum - 0.45) * 1.5;
+        col += grain * clamp(midMask, 0.25, 1.0);
+
+        // Vignette — moderate, centered slightly high where the light enters
+        float vign = distance(vUv, vec2(0.5, 0.44));
+        col *= 1.0 - smoothstep(0.22, 0.88, vign) * 0.52;
+
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(skyGeo, bgMat);
+  scene.add(bgMesh);
+
+  // -------- Layer 1: Light shaft glow --------
+  // The warm amber light pooling in the corridors between trunks.
+  // Not a sun glow — it is already filtered, diffuse, everywhere at once.
+  // Pulses at a pace much slower than breathing — the light shifts
+  // as the canopy moves imperceptibly far above.
+  const shaftMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+
+      void main() {
+        // Canopy drift — light shifts as the needles move far above
+        float canopy = noise(vec2(uTime * 0.012, 0.4)) * 0.5 + 0.5;
+
+        // Soft radial warmth — the light comes from upper-left in the image
+        float dy = abs(vUv.y - 0.38) * 3.2;
+        float dx = abs(vUv.x - 0.42) * 2.0;
+        float d  = dy * dy + dx * dx;
+
+        float amt = smoothstep(0.65, 0.0, d) * (0.22 + 0.12 * canopy);
+
+        // Pine afternoon amber — warm but not golden-hour orange
+        vec3 col = vec3(0.88, 0.68, 0.32) * amt;
+        gl_FragColor = vec4(col, amt * 0.40);
+      }
+    `,
+  });
+  const shaftMesh = new THREE.Mesh(skyGeo, shaftMat);
+  shaftMesh.renderOrder = 1;
+  scene.add(shaftMesh);
+
+  // -------- Layer 2: Forest depth haze --------
+  // A barely-perceptible warm mist in the depths between the trees.
+  // Not thick fog — just the suggestion that the forest keeps going.
+  // Confined to the lower half where the tree depths are.
+  const hazeMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v=0.0,a=0.5; for(int i=0;i<3;i++){v+=a*noise(p);p*=2.0;a*=0.5;} return v;
+      }
+
+      void main() {
+        // Very slow horizontal drift — the air between the trees barely moves
+        vec2 p = vec2(vUv.x * 3.0 - uTime * 0.004, vUv.y * 2.0);
+        float haze = fbm(p);
+        haze = smoothstep(0.44, 0.62, haze);
+
+        // Confined to the lower zone — the forest floor depth
+        float zone = smoothstep(0.42, 0.65, vUv.y);
+
+        float amt = haze * zone * 0.07;
+        // Very slightly warm — pine resin and afternoon heat
+        vec3 col = vec3(0.80, 0.70, 0.55) * amt;
+        gl_FragColor = vec4(col, amt * 0.60);
+      }
+    `,
+  });
+  const hazeMesh = new THREE.Mesh(skyGeo, hazeMat);
+  hazeMesh.renderOrder = 2;
+  scene.add(hazeMesh);
+
+  // -------- Layer 3: Dust motes --------
+  // Fine particles drifting slowly upward in the shafts of light.
+  // Almost imperceptible — the forest floor giving off its last warmth.
+  // Much slower than Friluftsliv's ridge-wind motes. These barely move.
+  // 120 motes, biased toward the light-shaft zone (upper-center of frame).
+  const MOTE_COUNT = 120;
+  const moteGeo  = new THREE.BufferGeometry();
+  const motePos  = new Float32Array(MOTE_COUNT * 3);
+  const moteSeed = new Float32Array(MOTE_COUNT);
+  for (let i = 0; i < MOTE_COUNT; i++) {
+    motePos[i*3 + 0] = (Math.random() - 0.5) * 8;
+    motePos[i*3 + 1] = (Math.random() - 0.5) * 8;
+    motePos[i*3 + 2] = -2 - Math.random() * 5;
+    moteSeed[i] = Math.random() * 1000;
+  }
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  moteGeo.setAttribute('aSeed',    new THREE.BufferAttribute(moteSeed, 1));
+
+  const moteMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime:  { value: 0 },
+      uPixel: { value: window.innerHeight },
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uPixel;
+      attribute float aSeed;
+      varying float vAlpha;
+      void main() {
+        vec3 p = position;
+        // Drift upward, very slowly — thoughts leaving
+        p.y = mod(p.y + uTime * (0.04 + aSeed * 0.02) + aSeed * 4.0, 8.0) - 4.0;
+        // Very slight horizontal wander — not wind, just thermal
+        p.x += sin(uTime * 0.08 + aSeed * 2.3) * 0.12;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        // Brightest near the light shaft zone (upper-center)
+        float nearLight = smoothstep(2.5, 0.4, length(p.xy - vec2(-0.3, 0.6)));
+        gl_PointSize = (0.8 + nearLight * 1.4) * (uPixel / 900.0);
+        vAlpha = 0.10 + nearLight * 0.30;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float a = smoothstep(0.5, 0.0, length(c));
+        // Warm amber-gold — caught in the light
+        gl_FragColor = vec4(vec3(0.95, 0.80, 0.50), a * vAlpha);
+      }
+    `,
+  });
+  const motes = new THREE.Points(moteGeo, moteMat);
+  motes.renderOrder = 3;
+  scene.add(motes);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value = w / h;
+    moteMat.uniforms.uPixel.value = h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value    = t;
+    shaftMat.uniforms.uTime.value = t;
+    hazeMat.uniforms.uTime.value  = t;
+    moteMat.uniforms.uTime.value  = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  // Slowest lift of any forest scene — you arrive, sit down, and wait.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 3000);
+      setTimeout(() => exitEl.classList.add('ready'), 4500);
+    }, 1500);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__soopAudio) window.__soopAudio.fadeOut(1.8);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') returnToField(); });
+
+  // ---------- Sound: Soop-meong ----------
+  // Unique fingerprint: PINE NEEDLE SIBILANCE (3500 Hz BP) — higher and
+  // softer than Komorebi's 2400 Hz leaf rustle. The forest is not rustling;
+  // it is breathing through its needles.
+  //
+  // (1) Forest resonance — 72 Hz sine, barely perceptible. The weight of
+  //     standing timber. Different from Toska (46 Hz), Ghayth (58 Hz),
+  //     Waldeinsamkeit (55/55.7 Hz).
+  // (2) Pine wind — 250 Hz LP. The air inside a pine forest is darker and
+  //     softer than open ridge wind (600 Hz) or desert wind (350 Hz).
+  //     This barely moves. It breathes.
+  // (3) Pine needle sibilance — 3500 Hz BP. The distinctive fingerprint.
+  //     Softer than Komorebi's 2400 Hz. Higher. Not papery — it is the
+  //     sound of thousands of needles making almost no sound at all.
+  // (4) Rare event: a single soft branch settling, every 35–65 seconds.
+  //     Not the sharp creak of Waldeinsamkeit. A soft, giving sound —
+  //     like the forest adjusting to your presence.
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(seconds, gainMul = 1) {
+    const len = seconds * audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<len;i++) {
+      const w = Math.random()*2-1;
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2 + w*0.1848) * 0.08 * gainMul;
+    }
+    return buf;
+  }
+
+  // (1) Forest resonance — 72 Hz, barely felt.
+  const resOsc = audioCtx.createOscillator();
+  resOsc.type = 'sine';
+  resOsc.frequency.value = 72;
+  const resGain = audioCtx.createGain();
+  resGain.gain.value = 0.12;
+  resOsc.connect(resGain).connect(master);
+  resOsc.start();
+
+  // (2) Pine wind — 250 Hz LP, very slow LFO (the forest barely breathes)
+  const windSrc = audioCtx.createBufferSource();
+  windSrc.buffer = makeNoise(6, 1.0);
+  windSrc.loop = true;
+  const windLP = audioCtx.createBiquadFilter();
+  windLP.type = 'lowpass';
+  windLP.frequency.value = 250;
+  const windGain = audioCtx.createGain();
+  windGain.gain.value = 0.14;
+  const windLFO = audioCtx.createOscillator();
+  windLFO.frequency.value = 0.022;  // one breath every 45 seconds
+  const windLFOAmt = audioCtx.createGain();
+  windLFOAmt.gain.value = 0.05;
+  windLFO.connect(windLFOAmt).connect(windGain.gain);
+  windLFO.start();
+  windSrc.connect(windLP).connect(windGain).connect(master);
+  windSrc.start();
+
+  // (3) Pine needle sibilance — 3500 Hz BP. The fingerprint.
+  const needleSrc = audioCtx.createBufferSource();
+  needleSrc.buffer = makeNoise(4, 0.5);
+  needleSrc.loop = true;
+  const needleBP = audioCtx.createBiquadFilter();
+  needleBP.type = 'bandpass';
+  needleBP.frequency.value = 3500;
+  needleBP.Q.value = 1.2;
+  const needleGain = audioCtx.createGain();
+  needleGain.gain.value = 0.08;  // delicate — this is texture, not event
+  // Coupled to the same LFO as wind — when the wind moves, the needles respond
+  const needleLFOAmt = audioCtx.createGain();
+  needleLFOAmt.gain.value = 0.04;
+  windLFO.connect(needleLFOAmt).connect(needleGain.gain);
+  needleSrc.connect(needleBP).connect(needleGain).connect(master);
+  needleSrc.start();
+
+  // (4) Branch settling — every 35–65 seconds.
+  // A soft, short noise burst: low bandpass, slow attack, faster decay.
+  // The forest making room for you. Not threatening. Giving.
+  function settle() {
+    const now = audioCtx.currentTime;
+    const delay = 0.05 + Math.random() * 0.1;
+    const freq = 180 + Math.random() * 80;  // soft, woody
+    const t = now + delay;
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = makeNoise(1.2, 0.7);
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = freq;
+    bp.Q.value = 2.0;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 800;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    noise.connect(bp).connect(lp).connect(g).connect(master);
+    noise.start(t);
+    noise.stop(t + 1.2);
+
+    setTimeout(settle, 35000 + Math.random() * 30000);
+  }
+  setTimeout(settle, 20000 + Math.random() * 15000);
+
+  // Fade in — slow, like sitting down and waiting
+  const t0 = audioCtx.currentTime;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(0.52, t0 + 5.5);
+
+  window.__soopAudio = {
+    fadeOut(sec = 1.8) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+
+})();
+</script>
+</body>
+</html>

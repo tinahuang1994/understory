@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Friluftsliv · Norwegian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #080808;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .veil {
+    position: fixed; inset: 0;
+    background: #000;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 3.8s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3s ease;
+  }
+  .caption.in { opacity: 1; }
+
+  .caption .word {
+    display: block;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    letter-spacing: 0.08em;
+    color: #e8c97a;
+    text-shadow:
+      0 2px 16px rgba(0,0,0,0.95),
+      0 0 80px rgba(0,0,0,0.80),
+      0 4px 6px rgba(0,0,0,1);
+  }
+
+  .caption .lang {
+    display: block;
+    margin-top: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(245, 236, 210, 0.78);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 780px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+    color: rgba(245, 238, 220, 0.92);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 236, 210, 0.50);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(245, 236, 210, 0.95); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="caption" id="caption">
+    <span class="word">Friluftsliv</span>
+    <span class="lang">Norwegian</span>
+    <span class="felt">To live in the open air in any weather, at any hour — not as a discipline, but as the natural state.</span>
+  </div>
+
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  FRILUFTSLIV — the Norwegian philosophy of open-air life
+  //
+  //  Visual composition:
+  //    • A mountain ridge path winds upward to the horizon. You are
+  //      standing on it, looking forward and up. The sky is large.
+  //    • A warm golden glow at the horizon — last light of day.
+  //      The sky above is cold blue-grey with moving clouds.
+  //    • Very subtle cloud drift in the upper sky — barely perceptible.
+  //    • Warm air motes drift upward and sideways — sunlight caught
+  //      on windblown grass seeds and dust.
+  //    • No enclosure, no shadow pressing in. The opposite of the
+  //      forest. Everything opens outward.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#080808');
+
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  // Portrait image (~0.75 AR). Same UV math as Komorebi.
+  // CENTER_Y = 0.52 frames the golden horizon and winding path together.
+  const bgLoader = new THREE.TextureLoader();
+  const bgTex    = bgLoader.load('../assets/friluftsliv.png');
+
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.52;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        // Darken watermark corner (bottom-right of image maps to bottom-right of frame)
+        float wmX = smoothstep(0.80, 1.0, vUv.x);
+        float wmY = smoothstep(0.82, 1.0, vUv.y);
+        col *= 1.0 - wmX * wmY * 0.85;
+
+        // Slight warm lift at the horizon band — enhance the golden light
+        // Horizon lives at roughly the lower-middle of our visible slice
+        float horizonBand = smoothstep(0.35, 0.50, vUv.y) * smoothstep(0.75, 0.50, vUv.y);
+        col.r += horizonBand * 0.04;
+        col.g += horizonBand * 0.02;
+
+        // Very gentle desaturation in sky (upper half) for a more photographic feel
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        float skyMask = smoothstep(0.55, 0.25, vUv.y);
+        col = mix(col, vec3(lum * 0.96 + 0.02), skyMask * 0.22);
+
+        // Film grain — breaks the Gemini smoothness
+        float grain1 = hash(vUv * 2143.5 + floor(uTime * 12.0) * 0.17);
+        float grain2 = hash(vUv * 3871.3 + floor(uTime * 12.0) * 0.29 + 0.5);
+        float grain  = (grain1 * 0.65 + grain2 * 0.35 - 0.5) * 0.032;
+        float midMask = 1.0 - abs(lum - 0.45) * 1.4;
+        col += grain * clamp(midMask, 0.3, 1.0);
+
+        // Vignette — very soft, open at the center (this scene should feel spacious)
+        float vign = distance(vUv, vec2(0.5, 0.48));
+        col *= 1.0 - smoothstep(0.28, 0.95, vign) * 0.40;
+
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(skyGeo, bgMat);
+  scene.add(bgMesh);
+
+  // -------- Layer 1: Horizon glow --------
+  // Warm amber-gold luminance pooling at the horizon line.
+  // This is the last light of day. Very slow pulse — clouds moving
+  // past the sun, brightening and dimming over minutes.
+  const horizonMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+
+      void main() {
+        float t = uTime;
+        // Cloud drift modulates the glow — light peaks when "clouds part"
+        float cloudShift = noise(vec2(t * 0.025, 0.8)) * 0.5 + 0.5;
+
+        // Horizontal glow band at the horizon — center of screen, slightly above mid
+        vec2 center = vec2(0.5, 0.50);
+        float dx = abs(vUv.x - center.x) * 1.4;
+        float dy = abs(vUv.y - center.y) * 3.5;
+        float d  = dx * dx + dy * dy;
+
+        float amt = smoothstep(0.55, 0.0, d) * (0.35 + 0.25 * cloudShift);
+
+        // Warm amber-gold — the actual color of the horizon in the photo
+        vec3 col = vec3(0.95, 0.72, 0.32) * amt;
+        gl_FragColor = vec4(col, amt * 0.55);
+      }
+    `,
+  });
+  const horizonMesh = new THREE.Mesh(skyGeo, horizonMat);
+  horizonMesh.renderOrder = 1;
+  scene.add(horizonMesh);
+
+  // -------- Layer 2: Cloud drift --------
+  // Very subtle horizontal movement in the upper sky.
+  // Not dramatic — just enough to make the sky feel alive.
+  // Noise-based wisps drifting left to right on the wind.
+  const cloudMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0, a = 0.5;
+        for (int i = 0; i < 3; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+        return v;
+      }
+
+      void main() {
+        float t = uTime;
+        vec2 uv = vUv;
+        // Drift rightward very slowly — ridge-top wind
+        vec2 p = vec2(uv.x * 4.0 - t * 0.012, uv.y * 2.5);
+        float cloud = fbm(p);
+        cloud = smoothstep(0.48, 0.70, cloud);  // only bright patches
+
+        // Confined to upper sky only
+        float skyBand = smoothstep(0.48, 0.20, uv.y);
+
+        float amt = cloud * skyBand * 0.10;
+        vec3 col = vec3(0.88, 0.90, 0.95) * amt;  // cool cloud-white
+        gl_FragColor = vec4(col, amt * 0.70);
+      }
+    `,
+  });
+  const cloudMesh = new THREE.Mesh(skyGeo, cloudMat);
+  cloudMesh.renderOrder = 2;
+  scene.add(cloudMesh);
+
+  // -------- Layer 3: Wind motes --------
+  // Warm golden particles — grass seeds and dust caught in the ridge wind.
+  // Drift upward and sideways. More energetic than Waldeinsamkeit's cold mist.
+  // This is open air moving through — not stillness.
+  // Wind motes — seeds and dust crossing the frame with the ridge wind.
+  // NOT floating up like forest mist. These move: rightward, purposeful, kinetic.
+  // 200 particles biased to the lower half (near the grass) where wind catches them.
+  const MOTE_COUNT = 200;
+  const moteGeo  = new THREE.BufferGeometry();
+  const motePos  = new Float32Array(MOTE_COUNT * 3);
+  const moteSeed = new Float32Array(MOTE_COUNT);
+  for (let i = 0; i < MOTE_COUNT; i++) {
+    motePos[i*3 + 0] = (Math.random() - 0.5) * 16;
+    // Bias to lower half — particles are near the grass, not the sky
+    motePos[i*3 + 1] = (Math.random() * 0.7 - 0.55) * 6;
+    motePos[i*3 + 2] = -2 - Math.random() * 6;
+    moteSeed[i] = Math.random() * 1000;
+  }
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  moteGeo.setAttribute('aSeed',    new THREE.BufferAttribute(moteSeed, 1));
+
+  const moteMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime:  { value: 0 },
+      uPixel: { value: window.innerHeight },
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uPixel;
+      attribute float aSeed;
+      varying float vAlpha;
+      void main() {
+        vec3 p = position;
+        // Primary motion: rightward scroll — ridge wind blows across, not up
+        // Each particle has a slightly different speed (aSeed * 0.04) so they stagger
+        float speed = 0.28 + aSeed * 0.04;
+        p.x = mod(p.x + uTime * speed + aSeed * 3.0, 18.0) - 9.0;
+        // Secondary: small vertical undulation — seeds tumble in the gusts
+        p.y += sin(uTime * 0.25 + aSeed * 1.7) * 0.18;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        // Brighter near the golden horizon band
+        float warmth = smoothstep(2.8, 0.4, length(p.xy - vec2(0.0, -0.2)));
+        gl_PointSize = (1.0 + warmth * 2.0) * (uPixel / 900.0);
+        vAlpha = 0.20 + warmth * 0.50;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float a = smoothstep(0.5, 0.0, length(c));
+        // Warm golden — catching the last sunlight
+        gl_FragColor = vec4(vec3(0.98, 0.82, 0.48), a * vAlpha);
+      }
+    `,
+  });
+  const motes = new THREE.Points(moteGeo, moteMat);
+  motes.renderOrder = 3;
+  scene.add(motes);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value = w / h;
+    moteMat.uniforms.uPixel.value = h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value      = t;
+    horizonMat.uniforms.uTime.value = t;
+    cloudMat.uniforms.uTime.value   = t;
+    moteMat.uniforms.uTime.value    = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 2400);
+      setTimeout(() => exitEl.classList.add('ready'), 3800);
+    }, 1200);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__friaudio) window.__friaudio.fadeOut(1.4);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') returnToField();
+  });
+
+  // ---------- Sound: ridge wind + open sky + grass ----------
+  // Friluftsliv needs the opposite of Waldeinsamkeit:
+  // open, expansive, breathing. Wind that moves. No enclosure.
+  // Higher frequencies than the forest — you hear the sky.
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(seconds, gainMul = 1) {
+    const len = seconds * audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<len;i++) {
+      const w = Math.random()*2-1;
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2 + w*0.1848) * 0.08 * gainMul;
+    }
+    return buf;
+  }
+
+  // (1) Wind body — open ridge wind, mid-frequency.
+  // Much higher cutoff than Waldeinsamkeit (600 Hz vs 180 Hz).
+  // This wind breathes, not presses.
+  const windSrc = audioCtx.createBufferSource();
+  windSrc.buffer = makeNoise(5, 1.6);
+  windSrc.loop = true;
+  const windLP = audioCtx.createBiquadFilter();
+  windLP.type = 'lowpass';
+  windLP.frequency.value = 600;
+  const windGain = audioCtx.createGain();
+  windGain.gain.value = 0.22;
+  windSrc.connect(windLP).connect(windGain).connect(master);
+  windSrc.start();
+
+  // Wind gusts — larger amplitude, uplighting swells
+  const gustLFO = audioCtx.createOscillator();
+  gustLFO.frequency.value = 0.06;
+  const gustAmt = audioCtx.createGain();
+  gustAmt.gain.value = 0.12;
+  gustLFO.connect(gustAmt).connect(windGain.gain);
+  gustLFO.start();
+
+  // Filter sweep on wind — timbre shifts with gusts
+  const windSweep = audioCtx.createOscillator();
+  windSweep.frequency.value = 0.025;
+  const windSweepAmt = audioCtx.createGain();
+  windSweepAmt.gain.value = 200;  // larger sweep range = more expressive
+  windSweep.connect(windSweepAmt).connect(windLP.frequency);
+  windSweep.start();
+
+  // (2) Grass rustle — high-frequency layer, the dry tundra grass in wind.
+  // Bandpass around 2200 Hz — papery, quick, organic.
+  const grassSrc = audioCtx.createBufferSource();
+  grassSrc.buffer = makeNoise(3, 1.0);
+  grassSrc.loop = true;
+  const grassBP = audioCtx.createBiquadFilter();
+  grassBP.type = 'bandpass';
+  grassBP.frequency.value = 2200;
+  grassBP.Q.value = 0.8;
+  const grassGain = audioCtx.createGain();
+  grassGain.gain.value = 0.18;  // pushed up — grass is the distinctive fingerprint vs word field wind
+  grassSrc.connect(grassBP).connect(grassGain).connect(master);
+  grassSrc.start();
+
+  // Grass gusts — coupled to the main wind LFO (same gust = grass reacts)
+  const grassGustAmt = audioCtx.createGain();
+  grassGustAmt.gain.value = 0.09;
+  gustLFO.connect(grassGustAmt).connect(grassGain.gain);
+
+  // (3) Sky tone — altitude resonance at 880 Hz.
+  // The barely-audible high frequency of open height.
+  // Comes forward between gusts — the sound of exposed sky.
+  const skyOsc = audioCtx.createOscillator();
+  skyOsc.type = 'sine';
+  skyOsc.frequency.value = 880;
+  const skyGain = audioCtx.createGain();
+  skyGain.gain.value = 0.035;  // pushed up — altitude tone is the other distinctive fingerprint
+  const skySwell = audioCtx.createOscillator();
+  skySwell.frequency.value = 0.038;
+  const skySwellAmt = audioCtx.createGain();
+  skySwellAmt.gain.value = 0.012;
+  skySwell.connect(skySwellAmt).connect(skyGain.gain);
+  skySwell.start();
+  skyOsc.connect(skyGain).connect(master);
+  skyOsc.start();
+  // (deep breath oscillator removed — geological/interior, wrong for open ridge)
+
+  // Fade in — open and immediate, not slow like the forest
+  const t0 = audioCtx.currentTime;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(0.72, t0 + 3.0);
+
+  window.__friaudio = {
+    fadeOut(sec = 1.4) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+
+})();
+</script>
+</body>
+</html>

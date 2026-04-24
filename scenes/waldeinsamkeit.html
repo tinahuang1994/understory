@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Waldeinsamkeit · German</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #030404;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .veil {
+    position: fixed; inset: 0;
+    background: #000;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 4.2s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+
+  /* Word caption — lower third */
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3.5s ease;
+  }
+  .caption.in { opacity: 1; }
+
+  /* The word itself — prominent, amber, large */
+  .caption .word {
+    display: block;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    letter-spacing: 0.08em;
+    color: #e8c97a;
+    text-shadow:
+      0 2px 16px rgba(0,0,0,0.98),
+      0 0 80px rgba(0,0,0,0.85),
+      0 4px 6px rgba(0,0,0,1);
+  }
+
+  /* Language attribution */
+  .caption .lang {
+    display: block;
+    margin-top: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(200, 215, 225, 0.78);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+
+  /* Felt line */
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 780px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+    color: rgba(220, 230, 238, 0.90);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(200, 215, 225, 0.50);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(200, 215, 225, 0.95); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="caption" id="caption">
+    <span class="word">Waldeinsamkeit</span>
+    <span class="lang">German</span>
+    <span class="felt">To walk deep enough into the forest that the world behind you goes quiet — and realize the silence feels like coming home.</span>
+  </div>
+
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  WALDEINSAMKEIT — the solitude of being deep in the forest
+  //
+  //  Visual composition:
+  //    • A dark forest path recedes to a misty vanishing point.
+  //      The viewer is inside the trees looking forward, alone.
+  //    • The photo base is cold and still — no warm light, no sun.
+  //    • A soft atmospheric haze glows from the depth of the path,
+  //      as if the mist itself is faintly luminous.
+  //    • Slow fog tendrils drift across the lower mid-ground —
+  //      barely perceptible, like breathing.
+  //    • Fine cold mist particles drift downward and sideways —
+  //      not warm golden dust but weightless grey-white droplets.
+  //    • No light shafts. No birds. Only the slow hush of the trees.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#030404');
+
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  // Landscape image (~4:3 AR). Fit by width, center crop height.
+  // CENTER_Y = 0.50 frames the path and misty mid-ground.
+  const bgLoader = new THREE.TextureLoader();
+  const bgTex    = bgLoader.load('../assets/waldeinsamkeit.png');
+
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      // Landscape image: ~4:3 = 1.333
+      // Fit by screen width (vUv.x covers full image width),
+      // show a centered vertical slice.
+      const float IMG_AR   = 1.333;
+      const float CENTER_Y = 0.50;  // center of image — the path and mist
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+
+        // Desaturate and push slightly cool — real forest light is grey-green, not vivid
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(col, vec3(lum), 0.28);
+        // Faint cool tint in the midtones
+        col.r *= 0.92;
+        col.b *= 1.06;
+
+        // Lift shadows slightly (real photos have raised blacks from haze)
+        col = col * 0.88 + 0.04;
+
+        // Film grain — the single biggest fix for the AI smoothness problem.
+        // Uses two noise samples at different scales, slightly time-drifted
+        // so grain isn't perfectly static (resembles natural sensor noise).
+        float grain1 = hash(vUv * 1847.3 + floor(uTime * 12.0) * 0.17);
+        float grain2 = hash(vUv * 3291.7 + floor(uTime * 12.0) * 0.31 + 0.5);
+        float grain  = (grain1 * 0.65 + grain2 * 0.35 - 0.5) * 0.038;
+        // Grain is most visible in midtones, less in shadows/highlights
+        float midMask = 1.0 - abs(lum - 0.45) * 1.4;
+        midMask = clamp(midMask, 0.3, 1.0);
+        col += grain * midMask;
+
+        // Standard lens vignette — asymmetric, heavier on sides
+        float vignX = abs(vUv.x - 0.5) * 1.6;
+        float vignY = abs(vUv.y - 0.52) * 1.2;
+        float vign  = vignX * vignX + vignY * vignY;
+        col *= 1.0 - smoothstep(0.18, 0.90, vign) * 0.60;
+
+        // Tree enclosure — tall dark columns pressing in from the sides.
+        // Taller than wide: x-falloff is steep, y-falloff is gradual.
+        // Creates vertical scale — the trees dwarf you.
+        // The solitude feels involuntary, not chosen.
+        float encX = abs(vUv.x - 0.5) * 2.0;           // 0 at center, 1 at edges
+        float encY = smoothstep(0.0, 0.7, vUv.y);       // fades in from top, full by mid
+        float enc  = pow(encX, 2.2) * encY * 0.50;
+        col *= 1.0 - enc;
+
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(skyGeo, bgMat);
+  scene.add(bgMesh);
+
+  // -------- Layer 1: Depth atmospheric haze --------
+  // Soft cold glow from the misty vanishing point of the path.
+  // Pulses imperceptibly — as if the mist breathes.
+  const hazeMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+
+      void main() {
+        float t = uTime;
+        // Vanishing point of the forest path — center, slightly above mid
+        vec2 depth = vec2(0.50, 0.44);
+        float d = distance(vUv, depth);
+
+        // Very slow mist drift modulates glow slightly
+        float drift = noise(vec2(t * 0.04, 0.3)) * 0.5 + 0.5;
+
+        // Primary depth haze: wide, soft, barely luminous
+        float a = smoothstep(0.62, 0.0, d) * (0.28 + 0.12 * drift);
+
+        // Cold atmospheric blue-grey
+        vec3 col = vec3(0.62, 0.72, 0.85) * a;
+        gl_FragColor = vec4(col, a * 0.65);
+      }
+    `,
+  });
+  const hazeMesh = new THREE.Mesh(skyGeo, hazeMat);
+  hazeMesh.renderOrder = 1;
+  scene.add(hazeMesh);
+
+  // -------- Layer 2: Fog tendrils --------
+  // Horizontal wisps of mist that drift slowly across the mid-ground.
+  // Organic noise-based shapes. Nearly invisible — felt more than seen.
+  const fogMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i), b = hash(i+vec2(1,0)), c = hash(i+vec2(0,1)), d = hash(i+vec2(1,1));
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0, a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise(p);
+          p *= 2.1; a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        float t = uTime;
+        vec2 uv = vUv;
+        // Stretch x for horizontal wisps
+        vec2 p = vec2(uv.x * 3.5 - t * 0.018, uv.y * 1.8);
+
+        float mist = fbm(p);
+        mist = pow(mist, 2.8);  // push toward zero — only peaks show
+
+        // Mist lives in the mid-ground: fade at top (canopy) and bottom (ground)
+        float vBand = smoothstep(0.20, 0.42, uv.y) * smoothstep(0.72, 0.50, uv.y);
+        // Fade at sides, concentrated along path
+        float hBand = smoothstep(0.0, 0.28, uv.x) * smoothstep(1.0, 0.72, uv.x);
+
+        float amt = mist * vBand * hBand * 0.18;
+        vec3 col = vec3(0.70, 0.76, 0.85) * amt;
+        gl_FragColor = vec4(col, amt * 0.80);
+      }
+    `,
+  });
+  const fogMesh = new THREE.Mesh(skyGeo, fogMat);
+  fogMesh.renderOrder = 2;
+  scene.add(fogMesh);
+
+  // -------- Layer 3: Cold mist particles --------
+  // Fine droplets drifting slowly downward and sideways.
+  // Not warm golden dust — cold, grey-white, weightless.
+  const MOTE_COUNT = 90;
+  const moteGeo  = new THREE.BufferGeometry();
+  const motePos  = new Float32Array(MOTE_COUNT * 3);
+  const moteSeed = new Float32Array(MOTE_COUNT);
+  for (let i = 0; i < MOTE_COUNT; i++) {
+    motePos[i*3 + 0] = (Math.random() - 0.5) * 14;
+    motePos[i*3 + 1] = (Math.random() - 0.5) * 8;
+    motePos[i*3 + 2] = -2 - Math.random() * 7;
+    moteSeed[i] = Math.random() * 1000;
+  }
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  moteGeo.setAttribute('aSeed',    new THREE.BufferAttribute(moteSeed, 1));
+
+  const moteMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime:  { value: 0 },
+      uPixel: { value: window.innerHeight },
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uPixel;
+      attribute float aSeed;
+      varying float vAlpha;
+      void main() {
+        vec3 p = position;
+        // Cold mist: drift laterally and very slowly downward
+        p.x += sin(uTime * 0.08 + aSeed * 1.3) * 0.40 + uTime * 0.04;
+        p.y -= mod(uTime * 0.06 + aSeed * 0.2, 7.0) * 0.22 - 0.5;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        // Brighter near the misty depth center
+        float near = smoothstep(4.0, 0.8, length(p.xy - vec2(0.0, 0.2)));
+        gl_PointSize = (0.8 + near * 1.6) * (uPixel / 900.0);
+        vAlpha = 0.15 + near * 0.35;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        float a = smoothstep(0.5, 0.0, d);
+        // Cold white-blue mist droplets
+        gl_FragColor = vec4(vec3(0.78, 0.84, 0.92), a * vAlpha);
+      }
+    `,
+  });
+  const motes = new THREE.Points(moteGeo, moteMat);
+  motes.renderOrder = 3;
+  scene.add(motes);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value  = w / h;
+    fogMat.uniforms.uAspect.value = w / h;
+    moteMat.uniforms.uPixel.value = h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value   = t;
+    hazeMat.uniforms.uTime.value = t;
+    fogMat.uniforms.uTime.value  = t;
+    moteMat.uniforms.uTime.value = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  // Slower veil lift than Komorebi — the darkness takes longer to let you in.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 2800);
+      setTimeout(() => exitEl.classList.add('ready'), 4200);
+    }, 1400);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__waldAudio) window.__waldAudio.fadeOut(1.6);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') returnToField();
+  });
+
+  // ---------- Sound: Waldeinsamkeit — dramatic forest score ----------
+  // Four layers working together:
+  //   (1) Sub-bass drone — felt in the chest, two detuned oscillators
+  //   (2) Wind — surges and recedes in waves, not a steady drone
+  //   (3) Haunting forest chord — three detuned sines creating hollow chorus
+  //   (4) Tree creaks — louder, more present, every 14–28 seconds
+  //   (5) Rare deep impact — distant fallen tree, every 55–100 seconds
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(seconds, gainMul = 1) {
+    const len = seconds * audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<len;i++) {
+      const w = Math.random()*2-1;
+      b0 = 0.99765*b0 + w*0.0990460;
+      b1 = 0.96300*b1 + w*0.2965164;
+      b2 = 0.57000*b2 + w*1.0526913;
+      d[i] = (b0+b1+b2 + w*0.1848) * 0.08 * gainMul;
+    }
+    return buf;
+  }
+
+  // (1) Sub-bass drone — two slightly detuned oscillators at ~55 Hz.
+  // The beating between them creates a slow physical throb — you feel it,
+  // not just hear it. This is the heartbeat of the forest.
+  [55.0, 55.7].forEach(freq => {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.22;
+    // Individual slow swell per oscillator (different periods = organic)
+    const lfo = audioCtx.createOscillator();
+    lfo.frequency.value = freq === 55.0 ? 0.055 : 0.041;
+    const lfoAmt = audioCtx.createGain();
+    lfoAmt.gain.value = 0.10;
+    lfo.connect(lfoAmt).connect(g.gain);
+    lfo.start();
+    o.connect(g).connect(master);
+    o.start();
+  });
+
+  // (2) Wind that surges — not a steady drone.
+  // Two noise layers: a low body and a mid "rush" layer.
+  // Each has a dedicated LFO that creates gusts at different periods
+  // so the wind feels alive and unpredictable.
+  const windBody = audioCtx.createBufferSource();
+  windBody.buffer = makeNoise(5, 1.8);
+  windBody.loop = true;
+  const windBodyLP = audioCtx.createBiquadFilter();
+  windBodyLP.type = 'lowpass';
+  windBodyLP.frequency.value = 180;
+  const windBodyGain = audioCtx.createGain();
+  windBodyGain.gain.value = 0.28;
+  windBody.connect(windBodyLP).connect(windBodyGain).connect(master);
+  windBody.start();
+
+  const windRush = audioCtx.createBufferSource();
+  windRush.buffer = makeNoise(5, 1.3);
+  windRush.loop = true;
+  const windRushBP = audioCtx.createBiquadFilter();
+  windRushBP.type = 'bandpass';
+  windRushBP.frequency.value = 420;
+  windRushBP.Q.value = 0.5;
+  const windRushGain = audioCtx.createGain();
+  windRushGain.gain.value = 0.0;  // starts silent, gusts bring it in
+  windRush.connect(windRushBP).connect(windRushGain).connect(master);
+  windRush.start();
+
+  // Gust LFO — large amplitude, slower period (~22s cycle)
+  // When a gust peaks: body swells + rush roars in
+  const gustLFO = audioCtx.createOscillator();
+  gustLFO.frequency.value = 0.045;
+  const gustBody = audioCtx.createGain();
+  gustBody.gain.value = 0.14;  // swell the body ±14%
+  const gustRush = audioCtx.createGain();
+  gustRush.gain.value = 0.18;  // dramatically open the rush layer
+  gustLFO.connect(gustBody).connect(windBodyGain.gain);
+  gustLFO.connect(gustRush).connect(windRushGain.gain);
+  gustLFO.start();
+
+  // Slower secondary gust (different phase = irregular intervals)
+  const gustLFO2 = audioCtx.createOscillator();
+  gustLFO2.frequency.value = 0.031;
+  const gustBody2 = audioCtx.createGain();
+  gustBody2.gain.value = 0.09;
+  gustLFO2.connect(gustBody2).connect(windBodyGain.gain);
+  gustLFO2.start();
+
+  // Filter sweep on body — wind changes timbre as pressure shifts
+  const windSweep = audioCtx.createOscillator();
+  windSweep.frequency.value = 0.018;
+  const windSweepAmt = audioCtx.createGain();
+  windSweepAmt.gain.value = 110;
+  windSweep.connect(windSweepAmt).connect(windBodyLP.frequency);
+  windSweep.start();
+
+  // (3) Haunting forest chord — three detuned sines: 146, 174, 220 Hz.
+  // This is the "voice" of the forest — a hollow, open fifth with a minor third.
+  // Very slowly swells in and out. Felt as atmosphere, not melody.
+  [146.0, 174.6, 220.0].forEach((freq, i) => {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq + (Math.random() - 0.5) * 0.4; // slight detune
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 380;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.028;
+    // Each chord tone has its own swell period — they breathe independently
+    const swell = audioCtx.createOscillator();
+    swell.frequency.value = [0.028, 0.021, 0.034][i];
+    const swellAmt = audioCtx.createGain();
+    swellAmt.gain.value = 0.022;
+    swell.connect(swellAmt).connect(g.gain);
+    swell.start();
+    o.connect(lp).connect(g).connect(master);
+    o.start();
+  });
+
+  // (4) Tree creak — more present than before.
+  // Every 14–28 seconds. Long, groaning, with a fading resonant tail.
+  function creak() {
+    const now = audioCtx.currentTime;
+    const startFreq = 75 + Math.random() * 55;
+    // Main creak: sawtooth gliding down under tension
+    const o1 = audioCtx.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(startFreq, now);
+    o1.frequency.exponentialRampToValueAtTime(startFreq * 0.60, now + 2.4);
+    // Harmonic overtone — gives it the woody resonance of a real tree
+    const o2 = audioCtx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(startFreq * 2.1, now);
+    o2.frequency.exponentialRampToValueAtTime(startFreq * 1.3, now + 2.4);
+
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 340;
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.09, now + 0.18);   // fast attack
+    g.gain.linearRampToValueAtTime(0.06, now + 1.0);    // sustain
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.8); // long decay
+
+    o1.connect(lp);
+    o2.connect(lp);
+    lp.connect(g).connect(master);
+    o1.start(now); o1.stop(now + 4.0);
+    o2.start(now); o2.stop(now + 4.0);
+
+    setTimeout(creak, 14000 + Math.random() * 14000);
+  }
+  setTimeout(creak, 6000 + Math.random() * 6000);
+
+  // (5) Rare deep impact — a distant tree falling.
+  // Very low (30–50 Hz), brief, with a long sub-bass tail.
+  // Heard every 55–100 seconds. Disrupts the stillness without destroying it.
+  function deepImpact() {
+    const now = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(48, now);
+    o.frequency.exponentialRampToValueAtTime(22, now + 1.2);
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.35, now + 0.06);   // sharp thud
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 90;
+
+    o.connect(lp).connect(g).connect(master);
+    o.start(now);
+    o.stop(now + 3.0);
+
+    setTimeout(deepImpact, 55000 + Math.random() * 45000);
+  }
+  setTimeout(deepImpact, 22000 + Math.random() * 18000);
+
+  // (6) Silence as texture — the wind periodically drops to near-zero.
+  // 4–6 seconds of near-stillness, then slowly returns.
+  // This is the actual experience Waldeinsamkeit describes:
+  // the moment the forest goes completely quiet and you become aware of nothing.
+  // Runs on a ~50–90 second cycle, staggered so it never feels mechanical.
+  const silenceBaseGain = 0.28;   // windBodyGain resting value
+  function silenceDrop() {
+    const now = audioCtx.currentTime;
+    const holdSec  = 4.0 + Math.random() * 2.0;   // 4–6 s of silence
+    const fadeOut  = 2.2;
+    const fadeIn   = 3.0 + Math.random() * 1.5;
+
+    // Wind body drops to 2% — barely breathing
+    windBodyGain.gain.cancelScheduledValues(now);
+    windBodyGain.gain.setValueAtTime(windBodyGain.gain.value, now);
+    windBodyGain.gain.linearRampToValueAtTime(0.006, now + fadeOut);
+    windBodyGain.gain.setValueAtTime(0.006, now + fadeOut + holdSec);
+    windBodyGain.gain.linearRampToValueAtTime(silenceBaseGain, now + fadeOut + holdSec + fadeIn);
+
+    // Rush layer fully closed during silence
+    windRushGain.gain.cancelScheduledValues(now);
+    windRushGain.gain.setValueAtTime(windRushGain.gain.value, now);
+    windRushGain.gain.linearRampToValueAtTime(0.0, now + fadeOut);
+    windRushGain.gain.setValueAtTime(0.0, now + fadeOut + holdSec);
+    windRushGain.gain.linearRampToValueAtTime(0.0, now + fadeOut + holdSec + fadeIn);
+
+    // Reschedule — irregular interval so it never feels like a loop
+    const nextIn = 50000 + Math.random() * 40000;
+    setTimeout(silenceDrop, nextIn);
+  }
+  // First silence: 35–55 s after entry (after user has settled in)
+  setTimeout(silenceDrop, 35000 + Math.random() * 20000);
+
+  // Fade in — forest closes in around you over 5 seconds
+  const t0 = audioCtx.currentTime;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(0.75, t0 + 5.0);
+
+  window.__waldAudio = {
+    fadeOut(sec = 1.6) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+
+})();
+</script>
+</body>
+</html>

@@ -354,9 +354,6 @@
     // Ghayth — large, right-side. Arabic script earns size.
     { script: "غيث",             roman: "Ghayth",         lang: "Arabic",     x: 83,   y: 52,   rot: -1.0, size: 62, font: "'Noto Naskh Arabic', 'Cormorant Garamond', serif" },
 
-    // Ṛtu — medium, left of centre, near Komorebi (a soft cluster).
-    { script: "ऋतु",             roman: "Ṛtu",            lang: "Sanskrit",   x: 34,   y: 54,   rot:  0,   size: 46, font: "'Cormorant Garamond', 'Noto Serif Devanagari', serif" },
-
     // Soop-meong — Korean, small, far left (isolated).
     { script: "숲멍",            roman: "Soop-meong",     lang: "Korean",     x: 10,   y: 40,   rot: -1.2, size: 40, font: "'Cormorant Garamond', 'Noto Serif KR', serif" },
 
@@ -381,8 +378,6 @@
     // Ubuntu — lower left, medium.
     { script: "Ubuntu",          roman: "Ubuntu",         lang: "Zulu",       x: 16,   y: 74,   rot:  1.8, size: 36 },
 
-    // Whatungarongaro — bottom, smallest, fading-est. Literal meaning = "gradual fade".
-    { script: "Whatungarongaro", roman: "Whatungarongaro",lang: "Māori",      x: 36,   y: 92,   rot:  0,   size: 24, fadePulse: true }
   ];
 
   const field    = document.getElementById('field');
@@ -452,7 +447,18 @@
 
     // Click: navigate to scene or coming-soon
     el.addEventListener('click', () => {
-      const sceneMap = { 'Komorebi': 'scenes/komorebi.html' };
+      const sceneMap = {
+        'Komorebi':       'scenes/komorebi.html',
+        'Waldeinsamkeit': 'scenes/waldeinsamkeit.html',
+        'Friluftsliv':    'scenes/friluftsliv.html',
+        'Toska':          'scenes/toska.html',
+        'Ghayth':         'scenes/ghayth.html',
+        'Soop-meong':     'scenes/soop-meong.html',
+        'Ceobhrán':       'scenes/ceobhran.html',
+        'Ubuntu':         'scenes/ubuntu.html',
+        'Wiikwegamaa':    'scenes/wiikwegamaa.html',
+        'Pachamama':      'scenes/pachamama.html',
+      };
       const target = sceneMap[w.roman]
         || `scenes/coming-soon.html?script=${encodeURIComponent(w.script)}&roman=${encodeURIComponent(w.roman)}&lang=${encodeURIComponent(w.lang)}`;
 

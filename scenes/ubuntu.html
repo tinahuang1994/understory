@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ubuntu · Zulu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #0a0604;
+    color: #f5f0e8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  .veil {
+    position: fixed; inset: 0;
+    background: #000;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 4.2s cubic-bezier(.4,0,.6,1);
+    z-index: 20;
+  }
+  .veil.lifted { opacity: 0; }
+  .veil.closing { opacity: 1; transition: opacity 1.8s ease; }
+  .caption {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 10vh;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3.5s ease;
+  }
+  .caption.in { opacity: 1; }
+  .caption .word {
+    display: block;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    letter-spacing: 0.08em;
+    color: #e8c97a;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.95), 0 0 80px rgba(0,0,0,0.80), 0 4px 6px rgba(0,0,0,1);
+  }
+  .caption .lang {
+    display: block;
+    margin-top: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(245, 236, 210, 0.65);
+    text-shadow: 0 1px 4px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.95);
+  }
+  .caption .felt {
+    display: block;
+    margin-top: 28px;
+    max-width: 700px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 19px;
+    line-height: 1.75;
+    letter-spacing: 0.02em;
+    color: rgba(245, 238, 220, 0.92);
+    text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98);
+  }
+  .exit {
+    position: fixed;
+    top: 24px; left: 28px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(245, 236, 210, 0.45);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.6s ease 1s, color 0.4s ease;
+  }
+  .exit.ready { opacity: 1; }
+  .exit:hover { color: rgba(245, 236, 210, 0.90); }
+  @media (prefers-reduced-motion: reduce) {
+    .veil, .caption, .exit { transition-duration: 0.4s; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="caption" id="caption">
+    <span class="word">Ubuntu</span>
+    <span class="lang">Zulu</span>
+    <span class="felt">A person is a person through other persons.</span>
+  </div>
+  <button class="exit" id="exit" aria-label="Return to the field">
+    <span>←</span><span>return</span>
+  </button>
+  <div class="veil" id="veil"></div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ------------------------------------------------------------------
+  //  UBUNTU — Zulu. "A person is a person through other persons."
+  //
+  //  Layer 0: Photo base — baobab trunk at golden sunset, red-ochre earth.
+  //  Layer 1: Sunset halo — golden crown of light behind the canopy.
+  //  Layer 2: Heat motes — sparse warm particles rising from the earth.
+  //
+  //  Audio fingerprint: CICADA TEXTURE at 4200 Hz.
+  //  No other scene uses the insect/cicada frequency range.
+  // ------------------------------------------------------------------
+
+  const stageEl   = document.getElementById('stage');
+  const captionEl = document.getElementById('caption');
+  const exitEl    = document.getElementById('exit');
+  const veilEl    = document.getElementById('veil');
+
+  const scene    = new THREE.Scene();
+  scene.background = new THREE.Color('#0a0604');
+  const camera   = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(0, 0, -1);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stageEl.appendChild(renderer.domElement);
+
+  const skyGeo = new THREE.PlaneGeometry(2, 2);
+
+  // -------- Layer 0: Photo base --------
+  const bgTex = new THREE.TextureLoader().load('../assets/ubuntu.png');
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uBg:     { value: bgTex },
+      uTime:   { value: 0 },
+      uAspect: { value: window.innerWidth / window.innerHeight },
+    },
+    depthTest: false, depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D uBg;
+      uniform float uTime;
+      uniform float uAspect;
+      varying vec2 vUv;
+      const float IMG_AR   = 0.75;
+      const float CENTER_Y = 0.48;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      void main() {
+        float visH = IMG_AR / uAspect;
+        float yOff = CENTER_Y - visH * 0.5;
+        vec2 uv = vec2(1.0 - vUv.x, vUv.y * visH + yOff);
+        vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+        float wmX = smoothstep(0.80, 1.0, vUv.x);
+        float wmY = smoothstep(0.85, 1.0, vUv.y);
+        col *= 1.0 - wmX * wmY * 0.90;
+        // Deepen red-ochre earth
+        float earthMask = smoothstep(0.45, 0.70, vUv.y);
+        col.r += earthMask * 0.020;
+        col.g -= earthMask * 0.005;
+        // Very subtle sky treatment — this is sunset, not twilight; let the orange breathe
+        float skyMask = smoothstep(0.38, 0.12, vUv.y);
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(col, vec3(lum*0.88+0.02, lum*0.88+0.01, lum*0.88+0.06), skyMask * 0.08);
+        // Film grain
+        float g1 = hash(vUv * 1947.3 + floor(uTime * 12.0) * 0.21);
+        float g2 = hash(vUv * 3621.8 + floor(uTime * 12.0) * 0.37 + 0.5);
+        float grain = (g1*0.65 + g2*0.35 - 0.5) * 0.026;
+        lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col += grain * clamp(1.0 - abs(lum - 0.45)*1.5, 0.25, 1.0);
+        // Vignette
+        float vign = distance(vUv, vec2(0.5, 0.48));
+        col *= 1.0 - smoothstep(0.22, 0.88, vign) * 0.48;
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `,
+  });
+  scene.add(new THREE.Mesh(skyGeo, bgMat));
+
+  // -------- Layer 1: Heat motes --------
+  const MOTE_COUNT = 60;
+  const moteGeo  = new THREE.BufferGeometry();
+  const motePos  = new Float32Array(MOTE_COUNT * 3);
+  const moteSeed = new Float32Array(MOTE_COUNT);
+  for (let i = 0; i < MOTE_COUNT; i++) {
+    motePos[i*3]   = (Math.random() - 0.5) * 14;
+    motePos[i*3+1] = (Math.random() * 0.5 - 0.65) * 6;
+    motePos[i*3+2] = -2 - Math.random() * 5;
+    moteSeed[i] = Math.random() * 1000;
+  }
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  moteGeo.setAttribute('aSeed',    new THREE.BufferAttribute(moteSeed, 1));
+  const moteMat = new THREE.ShaderMaterial({
+    transparent: true, depthTest: false, depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uPixel: { value: window.innerHeight } },
+    vertexShader: `
+      uniform float uTime; uniform float uPixel; attribute float aSeed; varying float vAlpha;
+      void main() {
+        vec3 p = position;
+        float speed = 0.06 + aSeed * 0.03;
+        p.y = mod(p.y + uTime * speed + aSeed * 2.0, 6.0) - 4.0;
+        p.x += sin(uTime * 0.15 + aSeed * 2.3) * 0.12;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (1.2 + aSeed * 0.8) * (uPixel / 900.0);
+        vAlpha = 0.12 + aSeed * 0.08;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
+        gl_FragColor = vec4(vec3(0.96, 0.74, 0.38), a * vAlpha);
+      }
+    `,
+  });
+  const motes = new THREE.Points(moteGeo, moteMat);
+  motes.renderOrder = 2;
+  scene.add(motes);
+
+  const clock = new THREE.Clock();
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    bgMat.uniforms.uAspect.value  = w / h;
+    moteMat.uniforms.uPixel.value = h;
+  }
+  window.addEventListener('resize', resize);
+
+  function animate() {
+    const t = clock.getElapsedTime();
+    bgMat.uniforms.uTime.value   = t;
+    moteMat.uniforms.uTime.value = t;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---------- Scene entry ----------
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
+      veilEl.classList.add('lifted');
+      setTimeout(() => captionEl.classList.add('in'), 2800);
+      setTimeout(() => exitEl.classList.add('ready'), 4200);
+    }, 1400);
+  }));
+
+  function returnToField() {
+    veilEl.classList.remove('lifted');
+    veilEl.classList.add('closing');
+    captionEl.classList.remove('in');
+    sessionStorage.setItem('understory:returning', '1');
+    if (window.__ubuntuAudio) window.__ubuntuAudio.fadeOut(1.8);
+    setTimeout(() => { location.href = '../'; }, 1800);
+  }
+  exitEl.addEventListener('click', returnToField);
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') returnToField(); });
+
+  // ---------- Audio ----------
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+
+  function makeNoise(sec, mul = 1) {
+    const buf = audioCtx.createBuffer(1, sec * audioCtx.sampleRate, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i=0;i<d.length;i++) {
+      const w=Math.random()*2-1;
+      b0=0.99765*b0+w*0.0990460; b1=0.96300*b1+w*0.2965164; b2=0.57000*b2+w*1.0526913;
+      d[i]=(b0+b1+b2+w*0.1848)*0.08*mul;
+    }
+    return buf;
+  }
+
+  // (1) Sub-bass 65 Hz
+  const droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sine'; droneOsc.frequency.value = 65;
+  const droneGain = audioCtx.createGain(); droneGain.gain.value = 0.18;
+  const droneLFO = audioCtx.createOscillator(); droneLFO.frequency.value = 0.010;
+  const droneLFOAmt = audioCtx.createGain(); droneLFOAmt.gain.value = 0.03;
+  droneLFO.connect(droneLFOAmt).connect(droneGain.gain); droneLFO.start();
+  droneOsc.connect(droneGain).connect(master); droneOsc.start();
+
+  // (2) Savanna breeze — 750 Hz LP
+  const windSrc = audioCtx.createBufferSource();
+  windSrc.buffer = makeNoise(6, 1.3); windSrc.loop = true;
+  const windLP = audioCtx.createBiquadFilter(); windLP.type = 'lowpass'; windLP.frequency.value = 750;
+  const windGain = audioCtx.createGain(); windGain.gain.value = 0.10;
+  const windLFO = audioCtx.createOscillator(); windLFO.frequency.value = 0.028;
+  const windLFOAmt = audioCtx.createGain(); windLFOAmt.gain.value = 0.06;
+  windLFO.connect(windLFOAmt).connect(windGain.gain); windLFO.start();
+  windSrc.connect(windLP).connect(windGain).connect(master); windSrc.start();
+
+  // (3) Cicada texture — 4200 Hz BP — unique fingerprint
+  const cicadaSrc = audioCtx.createBufferSource();
+  cicadaSrc.buffer = makeNoise(5, 0.8); cicadaSrc.loop = true;
+  const cicadaBP = audioCtx.createBiquadFilter(); cicadaBP.type = 'bandpass'; cicadaBP.frequency.value = 4200; cicadaBP.Q.value = 1.2;
+  const cicadaGain = audioCtx.createGain(); cicadaGain.gain.value = 0.24;
+  const cicadaLFO = audioCtx.createOscillator(); cicadaLFO.frequency.value = 0.07;
+  const cicadaLFOAmt = audioCtx.createGain(); cicadaLFOAmt.gain.value = 0.06;
+  cicadaLFO.connect(cicadaLFOAmt).connect(cicadaGain.gain); cicadaLFO.start();
+  cicadaSrc.connect(cicadaBP).connect(cicadaGain).connect(master); cicadaSrc.start();
+
+  // (4) Deep bird call — slow, resonant, every 40–65s
+  function birdCall() {
+    const now = audioCtx.currentTime;
+    const freq = 380 + Math.random() * 80;
+    const dur  = 0.65 + Math.random() * 0.3;
+    const osc  = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.linearRampToValueAtTime(freq * 1.08, now + dur * 0.35);
+    osc.frequency.linearRampToValueAtTime(freq * 0.95, now + dur);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.09, now + 0.08);
+    g.gain.setValueAtTime(0.09, now + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    osc.connect(g).connect(master); osc.start(now); osc.stop(now + dur + 0.05);
+    setTimeout(birdCall, 40000 + Math.random() * 25000);
+  }
+  setTimeout(birdCall, 5000 + Math.random() * 6000);
+
+  function beginFadeIn() {
+    const t0 = audioCtx.currentTime;
+    master.gain.cancelScheduledValues(t0);
+    master.gain.setValueAtTime(0, t0);
+    master.gain.linearRampToValueAtTime(0.62, t0 + 4.5);
+  }
+  audioCtx.resume().then(beginFadeIn).catch(() => {});
+  document.addEventListener('click', () => audioCtx.resume().then(beginFadeIn).catch(() => {}), { once: true });
+
+  window.__ubuntuAudio = {
+    fadeOut(sec = 1.8) {
+      const n = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(n);
+      master.gain.setValueAtTime(master.gain.value, n);
+      master.gain.linearRampToValueAtTime(0, n + sec);
+    }
+  };
+})();
+</script>
+</body>
+</html>

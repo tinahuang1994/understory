@@ -80,8 +80,32 @@ Words that may not need a photo base (pure generative Three.js):
 
 ---
 
-## Approved scenes
+## Felt line process
+
+Each scene has one felt line — the single sentence (or two) that produces the feeling of the word rather than defining it. Rules:
+- Research the actual etymology and literary origin before writing
+- Write 3–4 options; Tina picks
+- Sub-agents may critique but never change the felt line unilaterally — that decision stays with Tina
+- The felt line should include whatever is most specific and surprising about the word (e.g. "any weather" for Friluftsliv, not just "the outdoors")
+- One clean image or one precise emotional beat — see Komorebi's line as the model
+
+## Word color system
+Each word's color matches its emotional register — not a fixed amber for all scenes.
+- Warm words (Komorebi, Friluftsliv, Waldeinsamkeit): `#e8c97a` amber
+- Cold/grey words (Toska): `rgba(220, 215, 205, 0.94)` cold off-white
+- Apply this judgment to each new scene individually
+
+## Scenes
 
 | Scene | File | Photo | Status |
 |-------|------|-------|--------|
 | Komorebi | `/scenes/komorebi.html` | `/assets/komorebi.jpg` | ✅ Approved |
+| Waldeinsamkeit | `/scenes/waldeinsamkeit.html` | `/assets/waldeinsamkeit.png` | ✅ Approved |
+| Friluftsliv | `/scenes/friluftsliv.html` | `/assets/friluftsliv.png` | ✅ Approved |
+| Toska | `/scenes/toska.html` | `/assets/toska.png` | ✅ Approved |
+| Ghayth | `/scenes/ghayth.html` | `/assets/ghayth.png` | 🔄 Awaiting review |
+| Soop-meong | `/scenes/soop-meong.html` | `/assets/soop-meong.png` | 🔄 Awaiting review |
+| Ceobhrán | `/scenes/ceobhran.html` | `/assets/ceobhran.png` | 🔄 Awaiting review |
+| Ubuntu | `/scenes/ubuntu.html` | `/assets/ubuntu.png` | 🔄 Awaiting review — image horizontally flipped (known) |
+| Wiikwegamaa | `/scenes/wiikwegamaa.html` | `/assets/wiikwegamaa.png` | 🔄 Awaiting review |
+| Pachamama | `/scenes/pachamama.html` | `/assets/pachamama.png` | 🔄 Awaiting review |
