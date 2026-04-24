@@ -258,11 +258,11 @@
   droneLFO.connect(droneLFOAmt).connect(droneGain.gain); droneLFO.start();
   droneOsc.connect(droneGain).connect(master); droneOsc.start();
 
-  // (2) High altitude wind — 680 Hz LP, thin and cutting (not muffled bass)
+  // (2) Mountain weight — 140 Hz LP, deep tectonic rumble. Nothing else uses this.
   const windSrc = audioCtx.createBufferSource();
   windSrc.buffer = makeNoise(7, 1.4); windSrc.loop = true;
-  const windLP = audioCtx.createBiquadFilter(); windLP.type = 'lowpass'; windLP.frequency.value = 680;
-  const windGain = audioCtx.createGain(); windGain.gain.value = 0.10;
+  const windLP = audioCtx.createBiquadFilter(); windLP.type = 'lowpass'; windLP.frequency.value = 140;
+  const windGain = audioCtx.createGain(); windGain.gain.value = 0.18;
   const windLFO = audioCtx.createOscillator(); windLFO.frequency.value = 0.016;
   const windLFOAmt = audioCtx.createGain(); windLFOAmt.gain.value = 0.08;
   windLFO.connect(windLFOAmt).connect(windGain.gain); windLFO.start();

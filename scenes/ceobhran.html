@@ -421,6 +421,16 @@
   mistSrc.connect(mistBP).connect(mistGain).connect(master);
   mistSrc.start();
 
+  // (3b) Continuous mist hiss — always present, identifiable from first second.
+  // HP noise at 1600 Hz, very quiet. The air itself is wet.
+  const mistHissSrc = audioCtx.createBufferSource();
+  mistHissSrc.buffer = makeNoise(8, 0.6); mistHissSrc.loop = true;
+  const mistHissHP = audioCtx.createBiquadFilter(); mistHissHP.type = 'highpass'; mistHissHP.frequency.value = 1600;
+  const mistHissLP = audioCtx.createBiquadFilter(); mistHissLP.type = 'lowpass'; mistHissLP.frequency.value = 4000;
+  const mistHissGain = audioCtx.createGain(); mistHissGain.gain.value = 0.09;
+  mistHissSrc.connect(mistHissHP).connect(mistHissLP).connect(mistHissGain).connect(master);
+  mistHissSrc.start();
+
   // (4) Rain drops on stone — the ceobhrán fingerprint.
   // Sparse, countable drops on rock. Every 8–20 seconds. Not a shower —
   // individual drops you can hear one by one. The almost-rain.

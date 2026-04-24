@@ -492,7 +492,7 @@
   // (1) Sub-bass drone — two slightly detuned oscillators at ~55 Hz.
   // The beating between them creates a slow physical throb — you feel it,
   // not just hear it. This is the heartbeat of the forest.
-  [55.0, 55.7].forEach(freq => {
+  [44.0, 44.7].forEach(freq => {
     const o = audioCtx.createOscillator();
     o.type = 'sine';
     o.frequency.value = freq;
@@ -500,7 +500,7 @@
     g.gain.value = 0.22;
     // Individual slow swell per oscillator (different periods = organic)
     const lfo = audioCtx.createOscillator();
-    lfo.frequency.value = freq === 55.0 ? 0.055 : 0.041;
+    lfo.frequency.value = freq === 44.0 ? 0.055 : 0.041;
     const lfoAmt = audioCtx.createGain();
     lfoAmt.gain.value = 0.10;
     lfo.connect(lfoAmt).connect(g.gain);

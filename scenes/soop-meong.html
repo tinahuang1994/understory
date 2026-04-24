@@ -527,7 +527,7 @@
   needleBP.frequency.value = 3500;
   needleBP.Q.value = 1.2;
   const needleGain = audioCtx.createGain();
-  needleGain.gain.value = 0.08;  // delicate — this is texture, not event
+  needleGain.gain.value = 0.20;  // leads the scene — pine sibilance is the fingerprint
   // Coupled to the same LFO as wind — when the wind moves, the needles respond
   const needleLFOAmt = audioCtx.createGain();
   needleLFOAmt.gain.value = 0.04;
