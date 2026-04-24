@@ -145,7 +145,7 @@
 
   // -------- Layer 0: Photo base --------
   // CENTER_Y = 0.52 — centers the stone terracing in frame; valley recedes below.
-  const bgTex = new THREE.TextureLoader().load('../assets/pachamama.png');
+  const bgTex = new THREE.TextureLoader().load('../assets/pachamama.jpg');
   const bgMat = new THREE.ShaderMaterial({
     uniforms: {
       uBg:     { value: bgTex },
@@ -192,68 +192,6 @@
   });
   scene.add(new THREE.Mesh(skyGeo, bgMat));
 
-  // -------- Layer 1: Stone glow --------
-  // The last warmth of day held in ancient stone. Geological breathing.
-  const stoneGlowMat = new THREE.ShaderMaterial({
-    transparent: true, depthTest: false, depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
-    fragmentShader: `
-      uniform float uTime;
-      varying vec2 vUv;
-      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
-      float noise(vec2 p) {
-        vec2 i=floor(p), f=fract(p);
-        float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
-        vec2 u=f*f*(3.0-2.0*f);
-        return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
-      }
-      void main() {
-        float breath = noise(vec2(uTime * 0.006, 0.3)) * 0.5 + 0.5;
-        // Narrow to lower screen — stone is in the bottom third after CENTER_Y correction
-        float terraceZone = smoothstep(0.52, 0.64, vUv.y) * smoothstep(0.88, 0.64, vUv.y);
-        float hSpread = smoothstep(0.40, 0.0, abs(vUv.x - 0.48) * 1.4);
-        float amt = terraceZone * hSpread * (0.08 + 0.06 * breath);
-        vec3 col = vec3(0.78, 0.42, 0.18) * amt;
-        gl_FragColor = vec4(col, amt * 0.55);
-      }
-    `,
-  });
-  const stoneGlowMesh = new THREE.Mesh(skyGeo, stoneGlowMat);
-  stoneGlowMesh.renderOrder = 1;
-  scene.add(stoneGlowMesh);
-
-  // -------- Layer 2: Mountain haze --------
-  const hazeMat = new THREE.ShaderMaterial({
-    transparent: true, depthTest: false, depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
-    fragmentShader: `
-      uniform float uTime;
-      varying vec2 vUv;
-      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
-      float noise(vec2 p) {
-        vec2 i=floor(p), f=fract(p);
-        float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
-        vec2 u=f*f*(3.0-2.0*f);
-        return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
-      }
-      void main() {
-        // Valley/mountains in upper-middle screen after CENTER_Y correction
-        float valleyZone = smoothstep(0.12, 0.28, vUv.y) * smoothstep(0.52, 0.28, vUv.y);
-        float hazeNoise = noise(vec2(vUv.x * 4.0 + uTime * 0.002, vUv.y * 2.5)) * 0.5 + 0.5;
-        float amt = valleyZone * hazeNoise * 0.05;
-        vec3 col = vec3(0.30, 0.38, 0.52) * amt;
-        gl_FragColor = vec4(col, amt * 0.45);
-      }
-    `,
-  });
-  const hazeMesh = new THREE.Mesh(skyGeo, hazeMat);
-  hazeMesh.renderOrder = 2;
-  scene.add(hazeMesh);
-
   const clock = new THREE.Clock();
 
   function resize() {
@@ -267,9 +205,7 @@
 
   function animate() {
     const t = clock.getElapsedTime();
-    bgMat.uniforms.uTime.value        = t;
-    stoneGlowMat.uniforms.uTime.value = t;
-    hazeMat.uniforms.uTime.value      = t;
+    bgMat.uniforms.uTime.value = t;
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   }

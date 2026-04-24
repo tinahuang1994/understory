@@ -143,7 +143,7 @@
   const skyGeo = new THREE.PlaneGeometry(2, 2);
 
   // -------- Layer 0: Photo base --------
-  const bgTex = new THREE.TextureLoader().load('../assets/ubuntu.png');
+  const bgTex = new THREE.TextureLoader().load('../assets/ubuntu.jpg');
   const bgMat = new THREE.ShaderMaterial({
     uniforms: {
       uBg:     { value: bgTex },
@@ -166,7 +166,7 @@
       void main() {
         float visH = IMG_AR / uAspect;
         float yOff = CENTER_Y - visH * 0.5;
-        vec2 uv = vec2(1.0 - vUv.x, vUv.y * visH + yOff);
+        vec2 uv = vec2(vUv.x, vUv.y * visH + yOff);
         vec3 col = texture2D(uBg, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
         float wmX = smoothstep(0.80, 1.0, vUv.x);
         float wmY = smoothstep(0.85, 1.0, vUv.y);
@@ -194,47 +194,6 @@
   });
   scene.add(new THREE.Mesh(skyGeo, bgMat));
 
-  // -------- Layer 1: Heat motes --------
-  const MOTE_COUNT = 60;
-  const moteGeo  = new THREE.BufferGeometry();
-  const motePos  = new Float32Array(MOTE_COUNT * 3);
-  const moteSeed = new Float32Array(MOTE_COUNT);
-  for (let i = 0; i < MOTE_COUNT; i++) {
-    motePos[i*3]   = (Math.random() - 0.5) * 14;
-    motePos[i*3+1] = (Math.random() * 0.5 - 0.65) * 6;
-    motePos[i*3+2] = -2 - Math.random() * 5;
-    moteSeed[i] = Math.random() * 1000;
-  }
-  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
-  moteGeo.setAttribute('aSeed',    new THREE.BufferAttribute(moteSeed, 1));
-  const moteMat = new THREE.ShaderMaterial({
-    transparent: true, depthTest: false, depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    uniforms: { uTime: { value: 0 }, uPixel: { value: window.innerHeight } },
-    vertexShader: `
-      uniform float uTime; uniform float uPixel; attribute float aSeed; varying float vAlpha;
-      void main() {
-        vec3 p = position;
-        float speed = 0.06 + aSeed * 0.03;
-        p.y = mod(p.y + uTime * speed + aSeed * 2.0, 6.0) - 4.0;
-        p.x += sin(uTime * 0.15 + aSeed * 2.3) * 0.12;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (1.2 + aSeed * 0.8) * (uPixel / 900.0);
-        vAlpha = 0.12 + aSeed * 0.08;
-      }
-    `,
-    fragmentShader: `
-      varying float vAlpha;
-      void main() {
-        float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
-        gl_FragColor = vec4(vec3(0.96, 0.74, 0.38), a * vAlpha);
-      }
-    `,
-  });
-  const motes = new THREE.Points(moteGeo, moteMat);
-  motes.renderOrder = 2;
-  scene.add(motes);
-
   const clock = new THREE.Clock();
 
   function resize() {
@@ -243,14 +202,12 @@
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     bgMat.uniforms.uAspect.value  = w / h;
-    moteMat.uniforms.uPixel.value = h;
   }
   window.addEventListener('resize', resize);
 
   function animate() {
     const t = clock.getElapsedTime();
     bgMat.uniforms.uTime.value   = t;
-    moteMat.uniforms.uTime.value = t;
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   }
