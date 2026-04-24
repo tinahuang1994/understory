@@ -106,6 +106,5 @@ Each word's color matches its emotional register — not a fixed amber for all s
 | Ghayth | `/scenes/ghayth.html` | `/assets/ghayth.png` | 🔄 Awaiting review |
 | Soop-meong | `/scenes/soop-meong.html` | `/assets/soop-meong.png` | 🔄 Awaiting review |
 | Ceobhrán | `/scenes/ceobhran.html` | `/assets/ceobhran.png` | 🔄 Awaiting review |
-| Ubuntu | `/scenes/ubuntu.html` | `/assets/ubuntu.png` | 🔄 Awaiting review — image horizontally flipped (known) |
 | Wiikwegamaa | `/scenes/wiikwegamaa.html` | `/assets/wiikwegamaa.png` | 🔄 Awaiting review |
 | Pachamama | `/scenes/pachamama.html` | `/assets/pachamama.png` | 🔄 Awaiting review |

@@ -137,15 +137,14 @@ Every scene must be sonically distinct from (a) the word field ambient and (b) e
 |---|---|
 | Word field | Twin sines 41/55 Hz + 420 Hz LP noise |
 | Komorebi | 2400 Hz leaf rustle + bird chirps — high, warm, organic |
-| Waldeinsamkeit | Dual sub-bass beat 55/55.7 Hz + wind surges + minor chord + creaks + rare deep impact |
+| Waldeinsamkeit | Dual sub-bass beat 44/44.7 Hz + wind surges + minor chord + creaks + rare deep impact |
 | Friluftsliv | 2200 Hz grass rustle + 880 Hz sky tone sine |
 | Toska | 220 Hz triangle string + 330 Hz fifth + 600 Hz BP room hiss + crow (rare) |
 | Ghayth | 58 Hz drone + 350 Hz LP wind + 1200 Hz BP rain hiss + rolling thunder 80-130 Hz (rare) |
-| Soop-meong | 72 Hz + 250 Hz LP pine wind + 3500 Hz BP pine sibilance + branch settle (rare) |
-| Ceobhrán | 220 Hz LP muffled wind + rain drops on stone HP 1800-2400 Hz (rare) |
-| Ubuntu | 65 Hz drone + 750 Hz LP savanna breeze + 4200 Hz BP cicada texture + deep bird call (rare) |
+| Soop-meong | 72 Hz + 250 Hz LP pine wind + 3500 Hz BP pine sibilance (leads) + branch settle (rare) |
+| Ceobhrán | 65 Hz + 220 Hz LP wind + 1600-4000 Hz continuous mist hiss + rare stone drops HP 1800-2400 Hz |
 | Wiikwegamaa | 68 Hz drone + 2800 Hz HP water surface hiss + loon call sweep 400-640 Hz (rare, echo) |
-| Pachamama | 62 Hz drone + 680 Hz LP altitude wind + 950 Hz BP stone resonance + mountain echo (rare) |
+| Pachamama | 62 Hz drone + 140 Hz LP mountain rumble + 950 Hz BP stone resonance + mountain echo (rare) |
 
 **Rule:** Each new scene needs at least one frequency range or event type that no other scene uses. Identify it before building. If you can't name what makes this scene's sound unique, the design isn't done yet.
 
@@ -174,11 +173,10 @@ Every scene must be sonically distinct from (a) the word field ambient and (b) e
 | Ghayth | Arabic | In the Arabian desert, rain is not weather. It is rescue. غيث is the word for when it finally comes. |
 | Soop-meong | Korean | Sitting in the forest until your mind goes quiet enough to disappear into it. |
 | Ceobhrán | Irish | Not rain, not fog. The air between them — when the world turns silver and you stop minding getting wet. |
-| Ubuntu | Zulu | A person is a person through other persons. |
 | Wiikwegamaa | Ojibwe | The bay does not simply hold water. In Anishinaabe, the water is your kin — and standing at its edge is not sightseeing. It is visiting. |
 | Pachamama | Quechua | In Quechua, the word for earth and the word for time are the same. Pachamama is not where things happen. She is when they happen too. |
 
-## Scenes built (10/10)
+## Scenes built (9/9)
 1. Komorebi ✅ approved
 2. Waldeinsamkeit ✅ approved
 3. Friluftsliv ✅ approved
@@ -186,13 +184,13 @@ Every scene must be sonically distinct from (a) the word field ambient and (b) e
 5. Ghayth 🔄 awaiting review
 6. Soop-meong 🔄 awaiting review
 7. Ceobhrán 🔄 awaiting review
-8. Ubuntu 🔄 awaiting review (image horizontally flipped — known issue)
-9. Wiikwegamaa 🔄 awaiting review
-10. Pachamama 🔄 awaiting review
+8. Wiikwegamaa 🔄 awaiting review
+9. Pachamama 🔄 awaiting review
 
 ## Cut words (removed from product)
 - Ṛtu (Sanskrit) — cut: too visually similar to Friluftsliv (same open-horizon composition)
 - Whatungarongaro (Māori) — cut: redundant with Ceobhrán + Wiikwegamaa mist cluster
+- Ubuntu (Zulu) — cut: image could not be fixed (persistent horizontal flip), word removed April 24 2026
 
 ## Image generation notes
 - AI images fail on close-up tactile textures (cracked earth, dust, rain drops, snow)
